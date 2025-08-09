@@ -13,9 +13,9 @@
     - [安装](#安装)
     - [启动](#启动)
   - [Huggingface 部署](#huggingface-部署)
-<<<<<<< HEAD
+  <<<<<<< HEAD
     - [我承认你的代码写的确实很nb，但对我来说还是太吃操作了 (已过时)](#我承认你的代码写的确实很nb但对我来说还是太吃操作了-已过时)
-=======
+  =======
 >>>>>>> main
     - [卡在 Deploying?](#卡在-deploying)
     - [如何使用自定义域名](#如何使用自定义域名)
@@ -69,8 +69,8 @@ uv sync
 ```ini
 sleepy_main_host = "0.0.0.0" # 监听地址
 sleepy_main_port = "9010" # 端口号
-sleepy_secret = "改成别人猜不出来的密钥" # 密钥，相当于密码
-sleepy_page_user = "你的名字" # 将显示在网页中
+sleepy_main_secret = "改成别人猜不出来的密钥" # 密钥，相当于密码
+sleepy_page_name = "你的名字" # 将显示在网页中
 sleepy_page_favicon = "./static/favicon.ico" # 网站图标, 可替换 static/favicon.ico 自定义 (也可以用其他格式的, 自己改路径)
 sleepy_page_more_text = "欢迎来到我的状态页!" # 说两句? (也可以留空)
 sleepy_page_using_first = true # 使用中设备优先显示
