@@ -29,6 +29,14 @@ class ConfigModel(BaseModel):
     **注意: 不会自动切割日志**
     '''
 
+    database: str = 'sqlite:///../data.db'
+    '''
+    数据库 url
+    - SQLite: `sqlite:///../文件名.db`
+    - MySQL: `mysql://用户名:密码@主机:端口号/数据库名`
+    - 更多: https://docs.sqlalchemy.org.cn/en/20/core/engines.html#backend-specific-urls
+    '''
+
 # endregion user-config
 
 
