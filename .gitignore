@@ -2,14 +2,14 @@
 __pycache__/
 
 # Config
-data/
 config.yaml
 config.toml
+config.json
 .env
 
-# Data
+# Log / Data
+*.log
 *.db
-data.json
 
 # For Local / venv
 *.test.*
@@ -19,4 +19,3 @@ data.json
 
 # Others
 .vscode/launch.json
-

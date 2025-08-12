@@ -19,15 +19,12 @@
 1. 在 commit / release 时, 更新 `pyproject.toml` 中的版本号:
 
 ```toml
-# in dev
-version = "5.0-dev-20250621"
+[tool.sleepy]
+version = [6, 0, 0]
+version-str = "6.0-dev-20250811" # here
 ```
 
-```toml
-version = "5.0"
-```
-
-2. 在编写需要鉴权的接口时，一定要注意两个修饰器的顺序:
+1. 在编写需要鉴权的接口时，一定要注意两个修饰器的顺序:
 
 ```py
 @app.route('/route') # 路由定义在前
@@ -47,8 +44,8 @@ def function():
 
 > [!IMPORTANT]
 > **千万不要** 将以下文件 (夹) 包含在提交中:
-> - `data/`
+> - `.env`
 > - `config.yaml`
 > - `config.toml`
-> - `.env`
-> - `data.json`
+> - `config.json`
+> - `data.db`

@@ -1,0 +1,27 @@
+[project]
+name = "sleepy"
+version = "6.0.0"
+description = "A Flask application to see if you're online or not."
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "colorama>=0.4.6",
+    "dotenv>=0.9.9",
+    "fastapi[standard]>=0.116.1",
+    "pydantic>=2.11.7",
+    "pyyaml>=6.0.2",
+    "sqlmodel>=0.0.24",
+    "toml>=0.10.2",
+]
+
+[project.urls]
+homepage = "https://sleepy.siiway.top"
+documentation = "https://sleepy.siiway.top"
+github = "https://github.com/sleepy-project/sleepy"
+releasenotes = "https://github.com/sleepy-project/sleepy/releases"
+issues = "https://github.com/sleepy-project/sleepy/issues"
+
+[tool.sleepy]
+version = [6, 0, 0]
+version-str = "6.0-dev-20250811"
