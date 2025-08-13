@@ -1,8 +1,46 @@
 # coding: utf-8
 
 from pydantic import BaseModel
+import typing as t
 
 # region user-config
+
+
+class _LoggingConfigModel(BaseModel):
+    '''
+    日志配置 Model
+    '''
+
+    level: t.Literal['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'] = 'INFO'
+    '''
+    日志等级
+    - DEBUG
+    - INFO
+    - WARNING
+    - ERROR
+    - CRITICAL
+    '''
+
+    file: str | None = 'running.log'
+    '''
+    保存日志文件目录 (留空禁用) \n
+    如: `running.log`
+    '''
+
+    rotating: bool = True
+    '''
+    是否启用日志轮转
+    '''
+
+    rotating_size: float = 1024
+    '''
+    日志轮转大小 (单位: KB)
+    '''
+
+    rotating_count: int = 5
+    '''
+    日志轮转数量
+    '''
 
 
 class ConfigModel(BaseModel):
@@ -10,24 +48,7 @@ class ConfigModel(BaseModel):
     配置 Model
     '''
 
-    debug: bool = False
-    '''
-    是否启用调试模式 (显示更多日志)
-    '''
-
-    colorful_log: bool = True
-    '''
-    控制控制台输出日志是否有颜色及 Emoji 图标
-    - 如在获取控制台输出时遇到奇怪问题可关闭
-    - 建议使用 `log_file` 来获取日志文件 (日志文件始终不带颜色 & Emoji)
-    '''
-
-    log_file: str | None = 'running.log'
-    '''
-    保存日志文件目录 (留空禁用) \n
-    如: `data/running.log` \n
-    **注意: 不会自动切割日志**
-    '''
+    log: _LoggingConfigModel = _LoggingConfigModel()
 
     database: str = 'sqlite:///data.db'
     '''

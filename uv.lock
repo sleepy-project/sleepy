@@ -537,7 +537,6 @@ name = "sleepy"
 version = "6.0.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "colorama" },
     { name = "dotenv" },
     { name = "fastapi", extra = ["standard"] },
     { name = "passlib", extra = ["bcrypt"] },
@@ -549,7 +548,6 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "colorama", specifier = ">=0.4.6" },
     { name = "dotenv", specifier = ">=0.9.9" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.116.1" },
     { name = "passlib", extras = ["bcrypt"], specifier = ">=1.7.4" },

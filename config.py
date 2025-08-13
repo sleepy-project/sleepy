@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 from yaml import safe_load as load_yaml
 from toml import load as load_toml
 from json import load as load_json, loads as load_json_str, JSONDecodeError
-from pydantic import ValidationError
 
 import utils as u
 from config_models import ConfigModel, env_vaildate_json_keys
@@ -67,4 +66,4 @@ except Exception as e:
     l.warning(f'Error when loading config.json: {e}')
 
 # ----- mix configs -----
-config = ConfigModel.model_validate(u.deep_merge_dict(config_env, config_yaml, config_toml, config_json))
+config = ConfigModel(**u.deep_merge_dict(config_env, config_yaml, config_toml, config_json))

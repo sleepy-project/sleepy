@@ -9,6 +9,7 @@ config.json
 
 # Log / Data
 *.log
+*.log.*
 *.db
 
 # For Local / venv

@@ -2,6 +2,7 @@
 
 from time import time
 import logging
+from logging.handlers import RotatingFileHandler
 from contextlib import asynccontextmanager
 from sys import stdout
 import typing as t
@@ -22,18 +23,24 @@ import models as m
 # region init
 
 # init logger
+loglvl = getattr(logging, c.log.level.upper(), logging.INFO)
 l = logging.getLogger('uvicorn')  # get logger
-logging.basicConfig(level=logging.DEBUG if c.debug else logging.INFO)  # log level
-l.level = logging.DEBUG if c.debug else logging.INFO  # set logger level
+logging.basicConfig(level=loglvl)  # log level
+l.level = loglvl  # set logger level
 root_logger = logging.getLogger()  # get root logger
 root_logger.handlers.clear()  # clear default handlers
-stream_handler = logging.StreamHandler(stdout)  # get stream handler
-stream_handler.setFormatter(u.CustomFormatter(colorful=c.colorful_log))  # set stream formatter
+stream_handler = logging.StreamHandler()  # get stream handler
+stream_handler.setFormatter(u.CustomFormatter())  # set stream formatter
 # set file handler
-if c.log_file:
-    log_file_path = u.get_path(c.log_file)
-    file_handler = logging.FileHandler(log_file_path, encoding='utf-8', errors='ignore')
-    file_handler.setFormatter(u.CustomFormatter(colorful=False))
+if c.log.file:
+    log_file_path = u.get_path(c.log.file)
+    if c.log.rotating:
+        file_handler = RotatingFileHandler(
+            log_file_path, encoding='utf-8', errors='ignore', maxBytes=int(c.log.rotating_size * 1024), backupCount=c.log.rotating_count
+        )
+    else:
+        file_handler = logging.FileHandler(log_file_path, encoding='utf-8', errors='ignore')
+    file_handler.setFormatter(u.CustomFormatter())
     root_logger.addHandler(file_handler)
 logging.getLogger('watchfiles').level = logging.WARNING  # set watchfiles logger level
 
@@ -82,7 +89,7 @@ async def lifespan(app: FastAPI):
     l.info(f'{"="*15} Application Startup {"="*15}')
     l.info(f'Sleepy Backend version {version_str} ({".".join(str(i) for i in version)})')
     l.debug(f'Startup Config: {c}')
-    if c.log_file:
+    if c.log.file:
         l.info(f'Saving logs to {log_file_path}')
     # create db
     create_db_and_tables()
@@ -90,7 +97,6 @@ async def lifespan(app: FastAPI):
     l.info('Bye.')
 
 app = FastAPI(
-    debug=c.debug,
     title='Sleepy-Backend',
     version=f'{version_str} ({".".join(str(i) for i in version)})',
     lifespan=lifespan
