@@ -1,13 +1,14 @@
+# coding: utf-8
+
 import os
 from pathlib import Path
 from datetime import datetime
 import time
 from typing import Any
 
-from logging import getLogger, Formatter
+from logging import Formatter
 from colorama import Fore, Style
 
-from logger import l
 
 class CustomFormatter(Formatter):
     '''
@@ -45,6 +46,7 @@ class CustomFormatter(Formatter):
             self.replaces = self.replaces_nocolor
             self.symbols = {}
             self.default_symbol = ''
+
     def format(self, record):
         timestamp = datetime.now().strftime('[%Y-%m-%d %H:%M:%S]')  # 格式化时间
         symbol = f' {self.symbols.get(record.levelname, self.default_symbol)}'  # 表情符号
@@ -55,6 +57,7 @@ class CustomFormatter(Formatter):
         message = super().format(record)  # 日志内容
         formatted_message = f"{timestamp}{symbol} {level} | {file}:{line} | {message}"
         return formatted_message
+
 
 def current_dir() -> str:
     '''

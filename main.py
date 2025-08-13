@@ -7,19 +7,24 @@ from sys import stdout
 import typing as t
 
 from toml import load as load_toml
-from fastapi import FastAPI, Depends
-from fastapi.security import OAuth2PasswordBearer
-from sqlmodel import create_engine, SQLModel, Field, Session, select
+from fastapi import FastAPI, Depends, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
+# from fastapi.security import OAuth2PasswordBearer # 一会会用
+from sqlmodel import create_engine, SQLModel, Session, select
 from pydantic import BaseModel
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from config import config as c
 import utils as u
+import errors as e
+import models as m
 
 # region init
 
 # init logger
 l = logging.getLogger('uvicorn')  # get logger
 logging.basicConfig(level=logging.DEBUG if c.debug else logging.INFO)  # log level
+l.level = logging.DEBUG if c.debug else logging.INFO  # set logger level
 root_logger = logging.getLogger()  # get root logger
 root_logger.handlers.clear()  # clear default handlers
 stream_handler = logging.StreamHandler(stdout)  # get stream handler
@@ -47,23 +52,13 @@ with open(u.get_path('pyproject.toml'), 'r', encoding='utf-8') as f:
 engine = create_engine(c.database, connect_args={'check_same_thread': False})
 
 
-class Metadata(SQLModel, table=True):
-    '''
-    元数据
-    '''
-    id: int = Field(default=0, primary_key=True, index=True)
-    status: int = Field(default=0)
-    private_mode: bool = Field(default=False)
-    last_updated: float = Field(default=time())
-
-
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
     with Session(engine) as sess:
-        meta = sess.exec(select(Metadata)).first()
+        meta = sess.exec(select(m.Metadata)).first()
         if not meta:
-            l.debug('No metadata found, creating...')
-            sess.add(Metadata())
+            l.info('No metadata found, creating...')
+            sess.add(m.Metadata())
             sess.commit()
 
 
@@ -86,6 +81,7 @@ async def lifespan(app: FastAPI):
     # startup log
     l.info(f'{"="*15} Application Startup {"="*15}')
     l.info(f'Sleepy Backend version {version_str} ({".".join(str(i) for i in version)})')
+    l.debug(f'Startup Config: {c}')
     if c.log_file:
         l.info(f'Saving logs to {log_file_path}')
     # create db
@@ -93,14 +89,51 @@ async def lifespan(app: FastAPI):
     yield
     l.info('Bye.')
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    debug=c.debug,
+    title='Sleepy-Backend',
+    version=f'{version_str} ({".".join(str(i) for i in version)})',
+    lifespan=lifespan
+)
 
-oauth2 = OAuth2PasswordBearer(tokenUrl='api/token')
+# oauth2 = OAuth2PasswordBearer(tokenUrl='api/token')
+
+# region error-handlers
+
+
+@app.exception_handler(e.APIUnsuccessful)
+async def api_unsuccessful_exception_handler(request: Request, exc: e.APIUnsuccessful):
+    l.error(f'APIUnsuccessful: {exc}')
+    return JSONResponse(status_code=exc.code, content={
+        'code': exc.code,
+        'message': exc.message,
+        'detail': exc.detail
+    })
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    l.error(f'HTTPException: {exc}')
+    return JSONResponse(status_code=exc.status_code, content={
+        'code': exc.status_code,
+        'message': e.APIUnsuccessful.codes.get(exc.status_code, f'HTTP Error {exc.status_code}'),
+        'detail': exc.detail
+    })
+
+# endregion error-handlers
 
 # region routes
 
+# root
 
-@app.get('/')
+
+class RootResponse(BaseModel):
+    hello: str = 'sleepy'
+    version: tuple[int, int, int] = (6, 0, 0)
+    version_str: str = '6.0.0'
+
+
+@app.get('/', response_model=RootResponse)
 async def root():
     return {
         'hello': 'sleepy',
@@ -108,61 +141,187 @@ async def root():
         'version_str': version_str
     }
 
+# query
 
-@app.get('/api/status')
-async def get_status(sess: SessionDep):
-    meta = sess.exec(select(Metadata)).first()
-    if meta and not meta.private_mode:
+
+class QueryResponse(BaseModel):
+    time: float
+    status: int
+    private_mode: bool
+    devices: list[m.DeviceData]
+    last_updated: float
+
+
+@app.get('/api/query', response_model=QueryResponse)
+async def query(sess: SessionDep):
+    meta = sess.exec(select(m.Metadata)).first()
+    if meta:
+        if meta.private_mode:
+            devices = []
+        else:
+            devices = sess.exec(select(m.DeviceData)).all()
         return {
-            'success': True,
+            'time': time(),
+            'status': meta.status,
+            'private_mode': meta.private_mode,
+            'devices': devices,
+            'last_updated': meta.last_updated
+        }
+    else:
+        raise e.APIUnsuccessful(500, 'Cannot read metadata')
+
+# region routes-status
+
+
+class GetStatusResponse(BaseModel):
+    status: int | None = 0
+
+
+@app.get('/api/status', response_model=GetStatusResponse)
+async def get_status(sess: SessionDep):
+    meta = sess.exec(select(m.Metadata)).first()
+    if meta:
+        return {
             'status': meta.status
         }
     else:
-        return {
-            'success': True,
-            'status': None
-        }
+        raise e.APIUnsuccessful(500, 'Cannot read metadata')
 
 
 class SetStatusRequest(BaseModel):
     status: int
 
 
-@app.post('/api/status')
+@app.post('/api/status', status_code=204)
 async def set_status(sess: SessionDep, req: SetStatusRequest):
-    meta = sess.exec(select(Metadata)).first()
+    meta = sess.exec(select(m.Metadata)).first()
     if meta:
         meta.status = req.status
         meta.last_updated = time()
         sess.commit()
-    return {
-        'success': True
-    }
+        return
+    else:
+        raise e.APIUnsuccessful(500, 'Cannot update metadata')
+
+# private mode
 
 
-@app.get('/api/private_mode')
+class GetPrivateModeResponse(BaseModel):
+    private_mode: bool
+
+
+@app.get('/api/private_mode', response_model=GetPrivateModeResponse)
 async def get_private_mode(sess: SessionDep):
-    meta = sess.exec(select(Metadata)).first()
+    meta = sess.exec(select(m.Metadata)).first()
     if meta:
         return {
-            'success': True,
             'private_mode': meta.private_mode
         }
+    else:
+        raise e.APIUnsuccessful(500, 'Cannot read metadata')
 
 
 class SetPrivateModeRequest(BaseModel):
     private_mode: bool
 
 
-@app.post('/api/private_mode')
+@app.post('/api/private_mode', status_code=204)
 async def set_private_mode(sess: SessionDep, req: SetPrivateModeRequest):
-    meta = sess.exec(select(Metadata)).first()
+    meta = sess.exec(select(m.Metadata)).first()
     if meta:
         meta.private_mode = req.private_mode
         meta.last_updated = time()
         sess.commit()
+        return
+    else:
+        raise e.APIUnsuccessful(500, 'Cannot update metadata')
+
+# endregion routes-status
+
+# region routes-device
+
+
+@app.get('/api/devices/{device_id}', response_model=m.DeviceData)
+async def get_device(sess: SessionDep, device_id: str):
+    meta = sess.exec(select(m.Metadata)).first()
+    if meta and meta.private_mode:
+        raise e.APIUnsuccessful(403, 'Private mode is enabled')
+    device = sess.get(m.DeviceData, device_id)
+    if device:
+        return device
+    else:
+        raise e.APIUnsuccessful(404, 'Device not found')
+
+
+class UpdateDeviceRequest(BaseModel):
+    name: str | None = None
+    status: str | None = None
+    using: bool | None = None
+    fields: dict | None = None
+
+
+@app.put('/api/devices/{device_id}', status_code=204)
+async def update_device(sess: SessionDep, device_id: str, req: UpdateDeviceRequest, resp: Response):
+    device = sess.get(m.DeviceData, device_id)
+    if device:
+        # exist -> update
+        if req.name:
+            device.name = req.name
+        if req.status:
+            device.status = req.status
+        if req.using is not None:
+            device.using = req.using
+        if req.fields:
+            device.fields = req.fields
+        device.last_updated = time()
+    else:
+        # not exist -> create
+        if not req.name:
+            raise e.APIUnsuccessful(400, 'Device name is required')
+        device = m.DeviceData(
+            id=device_id,
+            name=req.name,
+            status=req.status or '',
+            using=req.using if req.using is not None else False,
+            fields=req.fields or {}
+        )
+        sess.add(device)
+        resp.status_code = 201
+    meta = sess.exec(select(m.Metadata)).first()
+    if meta:
+        meta.last_updated = time()
+    sess.commit()
+    return
+
+
+@app.delete('/api/devices/{device_id}', status_code=204)
+async def delete_device(sess: SessionDep, device_id: str):
+    device = sess.get(m.DeviceData, device_id)
+    if device:
+        sess.delete(device)
+        meta = sess.exec(select(m.Metadata)).first()
+        if meta:
+            meta.last_updated = time()
+        sess.commit()
+        return
+    else:
+        raise e.APIUnsuccessful(404, 'Device not found')
+
+
+class GetDevicesResponse(BaseModel):
+    devices: list[m.DeviceData]
+
+
+@app.get('/api/devices', response_model=GetDevicesResponse)
+async def get_devices(sess: SessionDep):
+    meta = sess.exec(select(m.Metadata)).first()
+    if meta and meta.private_mode:
+        raise e.APIUnsuccessful(403, 'Private mode is enabled')
+    devices = sess.exec(select(m.DeviceData)).all()
     return {
-        'success': True
+        'devices': devices
     }
+
+# endregion routes-device
 
 # endregion routes
