@@ -4,16 +4,21 @@ from time import time
 import logging
 from logging.handlers import RotatingFileHandler
 from contextlib import asynccontextmanager
-from sys import stdout
 import typing as t
+from datetime import timedelta, datetime, timezone
+import asyncio
 
 from toml import load as load_toml
-from fastapi import FastAPI, Depends, HTTPException, Request, Response
+from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
-# from fastapi.security import OAuth2PasswordBearer # 一会会用
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+import jwt
+from jwt.exceptions import InvalidTokenError
+from passlib.context import CryptContext
 from sqlmodel import create_engine, SQLModel, Session, select
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from sse_starlette import EventSourceResponse, ServerSentEvent
 
 from config import config as c
 import utils as u
@@ -70,13 +75,15 @@ def create_db_and_tables():
 
 
 def get_session():
-    with Session(engine) as session:
-        yield session
+    with Session(engine) as sess:
+        yield sess
 
 
 SessionDep = t.Annotated[Session, Depends(get_session)]
 
 # endregion models
+
+# region app-context
 
 
 @asynccontextmanager
@@ -86,7 +93,7 @@ async def lifespan(app: FastAPI):
     - yield 往下 -> on_exit
     '''
     # startup log
-    l.info(f'{"="*15} Application Startup {"="*15}')
+    l.info(f'{"=" * 15} Application Startup {"=" * 15}')
     l.info(f'Sleepy Backend version {version_str} ({".".join(str(i) for i in version)})')
     l.debug(f'Startup Config: {c}')
     if c.log.file:
@@ -102,8 +109,154 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# oauth2 = OAuth2PasswordBearer(tokenUrl='api/token')
+# endregion app-context
 
+# region auth
+
+pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
+oauth2 = OAuth2PasswordBearer(tokenUrl='api/token')
+algorithm: str = 'HS256'
+access_token_expires_minutes: int = 30
+
+
+def pwd_verify(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+def pwd_hash(password):
+    return pwd_context.hash(password)
+
+
+def auth_user(sess: SessionDep, username: str, password: str):
+    auth = sess.exec(select(m.AuthData)).first()
+    if not auth:
+        raise e.APIUnsuccessful(404, 'No authentication data found')
+    elif auth.username != username:
+        return False
+    elif not pwd_verify(password, auth.hashed_password):
+        return False
+    else:
+        return True
+
+
+def create_access_token(sess: SessionDep, data: dict, expires_delta: timedelta | None = None):
+    auth = sess.exec(select(m.AuthData)).first()
+    if not auth:
+        raise e.APIUnsuccessful(404, 'No authentication data found')
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+    to_encode.update({'exp': expire})
+    encoded_jwt = jwt.encode(to_encode, auth.secret_key, algorithm=algorithm)
+    return encoded_jwt
+
+
+async def current_user(sess: SessionDep, token: t.Annotated[str, Depends(oauth2)]):
+    auth = sess.exec(select(m.AuthData)).first()
+    if not auth:
+        raise e.APIUnsuccessful(404, 'No authentication data found')
+    credentials_exception = e.APIUnsuccessful(
+        code=401,
+        detail='Could not validate credentials',
+        headers={'WWW-Authenticate': 'Bearer'},
+    )
+    try:
+        payload = jwt.decode(token, auth.secret_key, algorithms=[algorithm])
+        username = payload.get('sub')
+        exp = payload.get('exp')
+        if username != auth.username:
+            raise credentials_exception
+        if exp and datetime.fromtimestamp(exp, timezone.utc) < datetime.now(timezone.utc):
+            raise credentials_exception
+    except InvalidTokenError:
+        raise credentials_exception
+    return auth.username
+
+
+# class LoginRequest(BaseModel):
+#     username: str | None = None
+#     password: str | None = None
+
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str = 'bearer'
+
+
+@app.post('/api/token', response_model=LoginResponse)
+async def login(
+    sess: SessionDep,
+    # req: LoginRequest
+    form_data: t.Annotated[OAuth2PasswordRequestForm, Depends()],
+):
+    # user = auth_user(sess, username=req.username, password=req.password)
+    user = auth_user(sess, username=form_data.username, password=form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail='Incorrect username or password'
+        )
+    access_token_expires = timedelta(minutes=access_token_expires_minutes)
+    access_token = create_access_token(
+        sess, data={'sub': form_data.username}, expires_delta=access_token_expires
+    )
+    return {
+        'access_token': access_token,
+        'token_type': 'bearer'
+    }
+
+
+class CreateUserRequest(BaseModel):
+    username: str
+    password: str
+
+
+@app.post('/api/user', status_code=204)
+async def create_user(sess: SessionDep, req: CreateUserRequest):
+    auth = sess.exec(select(m.AuthData)).first()
+    if auth:
+        raise e.APIUnsuccessful(403, 'User already exists')
+    else:
+        sess.add(m.AuthData(
+            username=req.username,
+            hashed_password=pwd_hash(req.password)
+        ))
+        sess.commit()
+        return
+
+
+class UpdateUserRequest(BaseModel):
+    old_username: str
+    old_password: str
+    new_username: str
+    new_password: str
+
+
+@app.put('/api/user', status_code=204)
+async def update_user(sess: SessionDep, req: UpdateUserRequest):
+    auth = sess.exec(select(m.AuthData)).first()
+    if not auth:
+        raise e.APIUnsuccessful(404, 'No authentication data found')
+    elif auth.username != req.old_username:
+        raise e.APIUnsuccessful(401, 'Incorrect username or password')
+    elif not pwd_verify(req.old_password, auth.hashed_password):
+        raise e.APIUnsuccessful(401, 'Incorrect username or password')
+    else:
+        auth.username = req.new_username
+        auth.hashed_password = pwd_hash(req.new_password)
+        sess.commit()
+        return
+
+
+@app.get('/api/whoami')
+async def whoami(sess: SessionDep, user: t.Annotated[str, Depends(current_user)]):
+    return {
+        'username': user
+    }
+
+# endregion auth
 # region error-handlers
 
 
@@ -114,7 +267,7 @@ async def api_unsuccessful_exception_handler(request: Request, exc: e.APIUnsucce
         'code': exc.code,
         'message': exc.message,
         'detail': exc.detail
-    })
+    }, headers=exc.headers)
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -124,7 +277,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         'code': exc.status_code,
         'message': e.APIUnsuccessful.codes.get(exc.status_code, f'HTTP Error {exc.status_code}'),
         'detail': exc.detail
-    })
+    }, headers=exc.headers)
 
 # endregion error-handlers
 
@@ -146,8 +299,6 @@ async def root():
         'version': version,
         'version_str': version_str
     }
-
-# query
 
 
 class QueryResponse(BaseModel):
@@ -176,6 +327,105 @@ async def query(sess: SessionDep):
     else:
         raise e.APIUnsuccessful(500, 'Cannot read metadata')
 
+# region routes-events
+
+
+class EventsManager:
+    def __init__(self):
+        self._conns: t.Set[asyncio.Queue] = set()
+
+    async def connect(self):
+        try:
+            queue = asyncio.Queue()
+            self._conns.add(queue)
+            l.info(f'EventStream connected, current connections: {len(self._conns)}')
+            await self.broadcast('online-changed', {'online': len(self._conns)})
+            return queue
+        except asyncio.QueueShutDown:
+            raise e.APIUnsuccessful(500, 'Cannot connect to event stream')
+
+    async def disconnect(self, queue: asyncio.Queue):
+        try:
+            self._conns.discard(queue)
+            l.info(f'EventStream disconnected, current connections: {len(self._conns)}')
+        except asyncio.QueueShutDown:
+            pass
+        finally:
+            l.debug(f'Broadcasting online count after disconnect: {len(self._conns)}')
+            await self.broadcast('online-changed', {'online': len(self._conns)})
+
+    async def broadcast(self, event: str, data: dict):
+        l.debug(f'Broadcasting event {event} with data {data} to {len(self._conns)} connections')
+
+        if not self._conns:
+            l.debug(f'No active connections for broadcast event: {event}')
+            return
+
+        queues = list(self._conns.copy())
+        failed_queues = []
+
+        for queue in queues:
+            try:
+                queue.put_nowait((event, data))
+            except asyncio.QueueFull:
+                l.debug('Queue full during put, removing from connections')
+                failed_queues.append(queue)
+            except asyncio.QueueShutDown:
+                l.debug('Queue shutdown during put, removing from connections')
+                failed_queues.append(queue)
+            except Exception as e:
+                l.debug(f'Error putting to queue: {e}, removing from connections')
+                failed_queues.append(queue)
+
+        for queue in failed_queues:
+            self._conns.discard(queue)
+
+        if failed_queues:
+            l.debug(f'Removed {len(failed_queues)} failed queues, new connection count: {len(self._conns)}')
+            await self.broadcast('online-changed', {'online': len(self._conns)})
+
+
+evt_manager = EventsManager()
+
+
+async def event_stream(sess: SessionDep):
+    queue = await evt_manager.connect()
+    try:
+        yield ServerSentEvent(
+            id='0',
+            event='connected',
+            data=await query(sess)
+        )
+        id = 0
+        event: str
+        data: dict
+        while True:
+            id += 1
+            event, data = await asyncio.wait_for(queue.get(), timeout=30.0)
+            yield ServerSentEvent(
+                id=str(id),
+                event=event,
+                data=data
+            )
+    except (asyncio.CancelledError, asyncio.QueueShutDown) as e:
+        l.debug(f'Event stream exception: {e}')
+        pass
+    finally:
+        l.debug('Event stream closing, calling disconnect')
+        await evt_manager.disconnect(queue)
+
+
+@app.get('/api/events')
+async def events(sess: SessionDep):
+    return EventSourceResponse(event_stream(sess), media_type='text/event-stream', headers={
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no'
+    })
+
+# endregion routes-events
+
+
 # region routes-status
 
 
@@ -199,7 +449,7 @@ class SetStatusRequest(BaseModel):
 
 
 @app.post('/api/status', status_code=204)
-async def set_status(sess: SessionDep, req: SetStatusRequest):
+async def set_status(sess: SessionDep, req: SetStatusRequest, user: t.Annotated[str, Depends(current_user)]):
     meta = sess.exec(select(m.Metadata)).first()
     if meta:
         meta.status = req.status
@@ -232,7 +482,7 @@ class SetPrivateModeRequest(BaseModel):
 
 
 @app.post('/api/private_mode', status_code=204)
-async def set_private_mode(sess: SessionDep, req: SetPrivateModeRequest):
+async def set_private_mode(sess: SessionDep, req: SetPrivateModeRequest, user: t.Annotated[str, Depends(current_user)]):
     meta = sess.exec(select(m.Metadata)).first()
     if meta:
         meta.private_mode = req.private_mode
@@ -267,7 +517,7 @@ class UpdateDeviceRequest(BaseModel):
 
 
 @app.put('/api/devices/{device_id}', status_code=204)
-async def update_device(sess: SessionDep, device_id: str, req: UpdateDeviceRequest, resp: Response):
+async def update_device(sess: SessionDep, device_id: str, req: UpdateDeviceRequest, user: t.Annotated[str, Depends(current_user)]):
     device = sess.get(m.DeviceData, device_id)
     if device:
         # exist -> update
@@ -292,7 +542,6 @@ async def update_device(sess: SessionDep, device_id: str, req: UpdateDeviceReque
             fields=req.fields or {}
         )
         sess.add(device)
-        resp.status_code = 201
     meta = sess.exec(select(m.Metadata)).first()
     if meta:
         meta.last_updated = time()
@@ -301,7 +550,7 @@ async def update_device(sess: SessionDep, device_id: str, req: UpdateDeviceReque
 
 
 @app.delete('/api/devices/{device_id}', status_code=204)
-async def delete_device(sess: SessionDep, device_id: str):
+async def delete_device(sess: SessionDep, device_id: str, user: t.Annotated[str, Depends(current_user)]):
     device = sess.get(m.DeviceData, device_id)
     if device:
         sess.delete(device)
