@@ -319,7 +319,6 @@ async def root():
 class QueryResponse(BaseModel):
     time: float
     status: int
-    private_mode: bool
     devices: list[m.DeviceData]
     last_updated: float
 
@@ -328,14 +327,10 @@ class QueryResponse(BaseModel):
 async def query(sess: SessionDep):
     meta = sess.exec(select(m.Metadata)).first()
     if meta:
-        if meta.private_mode:
-            devices = []
-        else:
-            devices = sess.exec(select(m.DeviceData)).all()
+        devices = sess.exec(select(m.DeviceData)).all()
         return {
             'time': time(),
             'status': meta.status,
-            'private_mode': meta.private_mode,
             'devices': devices,
             'last_updated': meta.last_updated
         }
@@ -369,7 +364,7 @@ class EventsManager:
             l.debug(f'Broadcasting online count after disconnect: {len(self._conns)}')
             await self.broadcast('online-changed', {'online': len(self._conns)})
 
-    async def broadcast(self, event: str, data: dict):
+    async def broadcast(self, event: str, data: dict | None = None):
         l.debug(f'Broadcasting event {event} with data {data} to {len(self._conns)} connections')
 
         if not self._conns:
@@ -436,7 +431,7 @@ async def events(sess: SessionDep):
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
         'X-Accel-Buffering': 'no'
-    })
+    }, ping=c.ping_interval)
 
 # endregion routes-events
 
@@ -466,46 +461,16 @@ class SetStatusRequest(BaseModel):
 @app.post('/api/status', status_code=204)
 async def set_status(sess: SessionDep, req: SetStatusRequest, user: t.Annotated[str, Depends(current_user)]):
     meta = sess.exec(select(m.Metadata)).first()
-    if meta:
+    if not meta:
+        raise e.APIUnsuccessful(500, 'Cannot update metadata')
+    elif meta.status == req.status:
+        return
+    else:
         meta.status = req.status
         meta.last_updated = time()
         sess.commit()
+        await evt_manager.broadcast('status_changed', {'status': req.status})
         return
-    else:
-        raise e.APIUnsuccessful(500, 'Cannot update metadata')
-
-# private mode
-
-
-class GetPrivateModeResponse(BaseModel):
-    private_mode: bool
-
-
-@app.get('/api/private_mode', response_model=GetPrivateModeResponse)
-async def get_private_mode(sess: SessionDep):
-    meta = sess.exec(select(m.Metadata)).first()
-    if meta:
-        return {
-            'private_mode': meta.private_mode
-        }
-    else:
-        raise e.APIUnsuccessful(500, 'Cannot read metadata')
-
-
-class SetPrivateModeRequest(BaseModel):
-    private_mode: bool
-
-
-@app.post('/api/private_mode', status_code=204)
-async def set_private_mode(sess: SessionDep, req: SetPrivateModeRequest, user: t.Annotated[str, Depends(current_user)]):
-    meta = sess.exec(select(m.Metadata)).first()
-    if meta:
-        meta.private_mode = req.private_mode
-        meta.last_updated = time()
-        sess.commit()
-        return
-    else:
-        raise e.APIUnsuccessful(500, 'Cannot update metadata')
 
 # endregion routes-status
 
@@ -514,9 +479,6 @@ async def set_private_mode(sess: SessionDep, req: SetPrivateModeRequest, user: t
 
 @app.get('/api/devices/{device_id}', response_model=m.DeviceData)
 async def get_device(sess: SessionDep, device_id: str):
-    meta = sess.exec(select(m.Metadata)).first()
-    if meta and meta.private_mode:
-        raise e.APIUnsuccessful(403, 'Private mode is enabled')
     device = sess.get(m.DeviceData, device_id)
     if device:
         return device
@@ -535,28 +497,39 @@ class UpdateDeviceRequest(BaseModel):
 async def update_device(sess: SessionDep, device_id: str, req: UpdateDeviceRequest, user: t.Annotated[str, Depends(current_user)]):
     device = sess.get(m.DeviceData, device_id)
     if device:
+        updated = {}
         # exist -> update
         if req.name:
             device.name = req.name
+            updated['name'] = req.name
         if req.status:
             device.status = req.status
+            updated['status'] = req.status
         if req.using is not None:
             device.using = req.using
+            updated['using'] = req.using
         if req.fields:
             device.fields = req.fields
-        device.last_updated = time()
+            updated['fields'] = req.fields
+        if updated:
+            device.last_updated = time()
+            await evt_manager.broadcast('device_updated', {'id': device_id, 'updated_fields': updated})
     else:
         # not exist -> create
         if not req.name:
             raise e.APIUnsuccessful(400, 'Device name is required')
+        status = req.status or ''
+        using = req.using if req.using is not None else False
+        fields = req.fields or {}
         device = m.DeviceData(
             id=device_id,
             name=req.name,
-            status=req.status or '',
-            using=req.using if req.using is not None else False,
-            fields=req.fields or {}
+            status=status,
+            using=using,
+            fields=fields
         )
         sess.add(device)
+        await evt_manager.broadcast('device_added', {'id': device_id, 'name': req.name, 'status': status, 'using': using, 'fields': fields})
     meta = sess.exec(select(m.Metadata)).first()
     if meta:
         meta.last_updated = time()
@@ -573,6 +546,7 @@ async def delete_device(sess: SessionDep, device_id: str, user: t.Annotated[str,
         if meta:
             meta.last_updated = time()
         sess.commit()
+        await evt_manager.broadcast('device_deleted', {'id': device_id})
         return
     else:
         raise e.APIUnsuccessful(404, 'Device not found')
@@ -584,13 +558,23 @@ class GetDevicesResponse(BaseModel):
 
 @app.get('/api/devices', response_model=GetDevicesResponse)
 async def get_devices(sess: SessionDep):
-    meta = sess.exec(select(m.Metadata)).first()
-    if meta and meta.private_mode:
-        raise e.APIUnsuccessful(403, 'Private mode is enabled')
     devices = sess.exec(select(m.DeviceData)).all()
     return {
         'devices': devices
     }
+
+
+@app.delete('/api/devices', status_code=204)
+async def clear_devices(sess: SessionDep, user: t.Annotated[str, Depends(current_user)]):
+    devices = sess.exec(select(m.DeviceData)).all()
+    for d in devices:
+        sess.delete(d)
+    meta = sess.exec(select(m.Metadata)).first()
+    if meta:
+        meta.last_updated = time()
+    sess.commit()
+    await evt_manager.broadcast('devices_cleared')
+    return
 
 # endregion routes-device
 

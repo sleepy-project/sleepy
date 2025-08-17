@@ -24,7 +24,6 @@ class Metadata(SQLModel, table=True):
     '''
     id: int = Field(default=0, primary_key=True, index=True)
     status: int = Field(default=0)
-    private_mode: bool = Field(default=False)
     last_updated: float = Field(default=time())
 
 

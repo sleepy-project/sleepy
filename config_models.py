@@ -58,6 +58,11 @@ class ConfigModel(BaseModel):
     - 更多: https://docs.sqlalchemy.org.cn/en/20/core/engines.html#backend-specific-urls
     '''
 
+    ping_interval: int = 20
+    '''
+    Event-Stream Ping 间隔 (单位: 秒, 设置为 0 禁用)
+    '''
+
 # endregion user-config
 
 
