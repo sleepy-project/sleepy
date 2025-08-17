@@ -9,7 +9,7 @@ from datetime import timedelta, datetime, timezone
 import asyncio
 
 from toml import load as load_toml
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, HTTPException, Request, Body
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import jwt
@@ -114,7 +114,7 @@ app = FastAPI(
 # region auth
 
 pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
-oauth2 = OAuth2PasswordBearer(tokenUrl='api/token')
+oauth2 = OAuth2PasswordBearer(tokenUrl='api/login')
 algorithm: str = 'HS256'
 access_token_expires_minutes: int = 30
 
@@ -175,9 +175,9 @@ async def current_user(sess: SessionDep, token: t.Annotated[str, Depends(oauth2)
     return auth.username
 
 
-# class LoginRequest(BaseModel):
-#     username: str | None = None
-#     password: str | None = None
+class LoginRequest(BaseModel):
+    username: str
+    password: str
 
 
 class LoginResponse(BaseModel):
@@ -185,22 +185,37 @@ class LoginResponse(BaseModel):
     token_type: str = 'bearer'
 
 
-@app.post('/api/token', response_model=LoginResponse)
+from fastapi import Body
+
+
+@app.post('/api/login', response_model=LoginResponse)
 async def login(
     sess: SessionDep,
-    # req: LoginRequest
-    form_data: t.Annotated[OAuth2PasswordRequestForm, Depends()],
+    form_data: t.Annotated[OAuth2PasswordRequestForm, Depends()] = None,  # type: ignore
+    json_data: t.Annotated[LoginRequest, Body()] = None  # type: ignore
 ):
-    # user = auth_user(sess, username=req.username, password=req.password)
-    user = auth_user(sess, username=form_data.username, password=form_data.password)
+    if form_data:
+        username = form_data.username
+        password = form_data.password
+    elif json_data:
+        username = json_data.username
+        password = json_data.password
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail='Either form data or JSON data is required'
+        )
+
+    user = auth_user(sess, username=username, password=password)
     if not user:
         raise HTTPException(
             status_code=401,
             detail='Incorrect username or password'
         )
+
     access_token_expires = timedelta(minutes=access_token_expires_minutes)
     access_token = create_access_token(
-        sess, data={'sub': form_data.username}, expires_delta=access_token_expires
+        sess, data={'sub': username}, expires_delta=access_token_expires
     )
     return {
         'access_token': access_token,
@@ -401,7 +416,7 @@ async def event_stream(sess: SessionDep):
         data: dict
         while True:
             id += 1
-            event, data = await asyncio.wait_for(queue.get(), timeout=30.0)
+            event, data = await queue.get()
             yield ServerSentEvent(
                 id=str(id),
                 event=event,
