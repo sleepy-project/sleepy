@@ -547,9 +547,7 @@ async def delete_device(sess: SessionDep, device_id: str, user: t.Annotated[str,
             meta.last_updated = time()
         sess.commit()
         await evt_manager.broadcast('device_deleted', {'id': device_id})
-        return
-    else:
-        raise e.APIUnsuccessful(404, 'Device not found')
+    return
 
 
 class GetDevicesResponse(BaseModel):
