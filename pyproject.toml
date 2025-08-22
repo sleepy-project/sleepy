@@ -16,6 +16,7 @@ dependencies = [
     "sqlmodel>=0.0.24",
     "sse-starlette>=3.0.2",
     "toml>=0.10.2",
+    "websockets>=15.0.1",
 ]
 
 [project.urls]
@@ -27,4 +28,4 @@ issues = "https://github.com/sleepy-project/sleepy/issues"
 
 [tool.sleepy]
 version = [6, 0, 0]
-version-str = "6.0-dev-20250818"
+version-str = "6.0-dev-20250823"

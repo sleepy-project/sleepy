@@ -9,7 +9,7 @@ from datetime import timedelta, datetime, timezone
 import asyncio
 
 from toml import load as load_toml
-from fastapi import FastAPI, Depends, HTTPException, Request, Body
+from fastapi import FastAPI, Depends, HTTPException, Request, Body, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import jwt
@@ -340,38 +340,38 @@ async def query(sess: SessionDep):
 # region routes-events
 
 
-class EventsManager:
-    def __init__(self):
-        self._conns: t.Set[asyncio.Queue] = set()
+class ConnManager:
+    _events: t.Set[asyncio.Queue] = set()
+    _public_ws = t.Set[WebSocket] = set()  # type: ignore
 
-    async def connect(self):
+    async def evt_connect(self):
         try:
             queue = asyncio.Queue()
-            self._conns.add(queue)
-            l.info(f'EventStream connected, current connections: {len(self._conns)}')
-            await self.broadcast('online-changed', {'online': len(self._conns)})
+            self._events.add(queue)
+            l.info(f'EventStream connected, current connections: {len(self._events)}')
+            await self.evt_broadcast('online-changed', {'online': len(self._events)})
             return queue
         except asyncio.QueueShutDown:
             raise e.APIUnsuccessful(500, 'Cannot connect to event stream')
 
-    async def disconnect(self, queue: asyncio.Queue):
+    async def evt_disconnect(self, queue: asyncio.Queue):
         try:
-            self._conns.discard(queue)
-            l.info(f'EventStream disconnected, current connections: {len(self._conns)}')
+            self._events.discard(queue)
+            l.info(f'EventStream disconnected, current connections: {len(self._events)}')
         except asyncio.QueueShutDown:
             pass
         finally:
-            l.debug(f'Broadcasting online count after disconnect: {len(self._conns)}')
-            await self.broadcast('online-changed', {'online': len(self._conns)})
+            l.debug(f'Broadcasting online count after disconnect: {len(self._events)}')
+            await self.evt_broadcast('online-changed', {'online': len(self._events)})
 
-    async def broadcast(self, event: str, data: dict | None = None):
-        l.debug(f'Broadcasting event {event} with data {data} to {len(self._conns)} connections')
+    async def evt_broadcast(self, event: str, data: dict | None = None):
+        l.debug(f'Broadcasting event {event} with data {data} to {len(self._events)} connections')
 
-        if not self._conns:
+        if not self._events:
             l.debug(f'No active connections for broadcast event: {event}')
             return
 
-        queues = list(self._conns.copy())
+        queues = list(self._events.copy())
         failed_queues = []
 
         for queue in queues:
@@ -388,18 +388,27 @@ class EventsManager:
                 failed_queues.append(queue)
 
         for queue in failed_queues:
-            self._conns.discard(queue)
+            self._events.discard(queue)
 
         if failed_queues:
-            l.debug(f'Removed {len(failed_queues)} failed queues, new connection count: {len(self._conns)}')
-            await self.broadcast('online-changed', {'online': len(self._conns)})
+            l.debug(f'Removed {len(failed_queues)} failed queues, new connection count: {len(self._events)}')
+            await self.evt_broadcast('online-changed', {'online': len(self._events)})
+
+    async def connect_pub(self, ws: WebSocket):
+        self._public_ws.add(ws)
+
+    async def disconnect_pub(self, ws: WebSocket):
+        self._public_ws.discard(ws)
+
+    async def broadcast_pub(self, data: dict):
+        await asyncio.gather(*(asyncio.create_task(c.send_json(data)) for c in self._public_ws), return_exceptions=True)
 
 
-evt_manager = EventsManager()
+manager = ConnManager()
 
 
 async def event_stream(sess: SessionDep):
-    queue = await evt_manager.connect()
+    queue = await manager.evt_connect()
     try:
         yield ServerSentEvent(
             id='0',
@@ -422,7 +431,7 @@ async def event_stream(sess: SessionDep):
         pass
     finally:
         l.debug('Event stream closing, calling disconnect')
-        await evt_manager.disconnect(queue)
+        await manager.evt_disconnect(queue)
 
 
 @app.get('/api/events')
@@ -435,6 +444,31 @@ async def events(sess: SessionDep):
 
 # endregion routes-events
 
+# region routes-ws
+
+
+@app.websocket('/api/devices/{device_id}')
+async def websocket_device(ws: WebSocket, user: t.Annotated[str, Depends(current_user)]):
+    try:
+        await ws.accept()
+        while True:
+            data: dict = await ws.receive_json()
+
+    except WebSocketDisconnect:
+        pass
+
+
+@app.websocket('/api/ws')
+async def websocket_public(ws: WebSocket):
+    try:
+        await ws.accept()
+        await manager.connect_pub(ws)
+        while True:
+            data = await ws.receive_json()
+    except WebSocketDisconnect:
+        await manager.disconnect_pub(ws)
+
+# endregion routes-ws
 
 # region routes-status
 
@@ -469,7 +503,7 @@ async def set_status(sess: SessionDep, req: SetStatusRequest, user: t.Annotated[
         meta.status = req.status
         meta.last_updated = time()
         sess.commit()
-        await evt_manager.broadcast('status_changed', {'status': req.status})
+        await manager.evt_broadcast('status_changed', {'status': req.status})
         return
 
 # endregion routes-status
@@ -513,7 +547,7 @@ async def update_device(sess: SessionDep, device_id: str, req: UpdateDeviceReque
             updated['fields'] = req.fields
         if updated:
             device.last_updated = time()
-            await evt_manager.broadcast('device_updated', {'id': device_id, 'updated_fields': updated})
+            await manager.evt_broadcast('device_updated', {'id': device_id, 'updated_fields': updated})
     else:
         # not exist -> create
         if not req.name:
@@ -529,7 +563,7 @@ async def update_device(sess: SessionDep, device_id: str, req: UpdateDeviceReque
             fields=fields
         )
         sess.add(device)
-        await evt_manager.broadcast('device_added', {'id': device_id, 'name': req.name, 'status': status, 'using': using, 'fields': fields})
+        await manager.evt_broadcast('device_added', {'id': device_id, 'name': req.name, 'status': status, 'using': using, 'fields': fields})
     meta = sess.exec(select(m.Metadata)).first()
     if meta:
         meta.last_updated = time()
@@ -546,7 +580,7 @@ async def delete_device(sess: SessionDep, device_id: str, user: t.Annotated[str,
         if meta:
             meta.last_updated = time()
         sess.commit()
-        await evt_manager.broadcast('device_deleted', {'id': device_id})
+        await manager.evt_broadcast('device_deleted', {'id': device_id})
     return
 
 
@@ -571,7 +605,7 @@ async def clear_devices(sess: SessionDep, user: t.Annotated[str, Depends(current
     if meta:
         meta.last_updated = time()
     sess.commit()
-    await evt_manager.broadcast('devices_cleared')
+    await manager.evt_broadcast('devices_cleared')
     return
 
 # endregion routes-device
