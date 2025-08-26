@@ -18,5 +18,8 @@ config.json
 .venv/
 .venv_legacy/
 
+# Legacy content
+old/*
+
 # Others
 .vscode/launch.json

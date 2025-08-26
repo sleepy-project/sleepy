@@ -7,9 +7,10 @@ from contextlib import asynccontextmanager
 import typing as t
 from datetime import timedelta, datetime, timezone
 import asyncio
+import uvicorn
 
 from toml import load as load_toml
-from fastapi import FastAPI, Depends, HTTPException, Request, Body, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, APIRouter, Depends, HTTPException, Request, Body, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import jwt
@@ -104,7 +105,7 @@ async def lifespan(app: FastAPI):
     l.info('Bye.')
 
 app = FastAPI(
-    title='Sleepy-Backend',
+    title='sleepy backend',
     version=f'{version_str} ({".".join(str(i) for i in version)})',
     lifespan=lifespan
 )
@@ -185,95 +186,7 @@ class LoginResponse(BaseModel):
     token_type: str = 'bearer'
 
 
-from fastapi import Body
-
-
-@app.post('/api/login', response_model=LoginResponse)
-async def login(
-    sess: SessionDep,
-    form_data: t.Annotated[OAuth2PasswordRequestForm, Depends()] = None,  # type: ignore
-    json_data: t.Annotated[LoginRequest, Body()] = None  # type: ignore
-):
-    if form_data:
-        username = form_data.username
-        password = form_data.password
-    elif json_data:
-        username = json_data.username
-        password = json_data.password
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail='Either form data or JSON data is required'
-        )
-
-    user = auth_user(sess, username=username, password=password)
-    if not user:
-        raise HTTPException(
-            status_code=401,
-            detail='Incorrect username or password'
-        )
-
-    access_token_expires = timedelta(minutes=access_token_expires_minutes)
-    access_token = create_access_token(
-        sess, data={'sub': username}, expires_delta=access_token_expires
-    )
-    return {
-        'access_token': access_token,
-        'token_type': 'bearer'
-    }
-
-
-class CreateUserRequest(BaseModel):
-    username: str
-    password: str
-
-
-@app.post('/api/user', status_code=204)
-async def create_user(sess: SessionDep, req: CreateUserRequest):
-    auth = sess.exec(select(m.AuthData)).first()
-    if auth:
-        raise e.APIUnsuccessful(403, 'User already exists')
-    else:
-        sess.add(m.AuthData(
-            username=req.username,
-            hashed_password=pwd_hash(req.password)
-        ))
-        sess.commit()
-        return
-
-
-class UpdateUserRequest(BaseModel):
-    old_username: str
-    old_password: str
-    new_username: str
-    new_password: str
-
-
-@app.put('/api/user', status_code=204)
-async def update_user(sess: SessionDep, req: UpdateUserRequest):
-    auth = sess.exec(select(m.AuthData)).first()
-    if not auth:
-        raise e.APIUnsuccessful(404, 'No authentication data found')
-    elif auth.username != req.old_username:
-        raise e.APIUnsuccessful(401, 'Incorrect username or password')
-    elif not pwd_verify(req.old_password, auth.hashed_password):
-        raise e.APIUnsuccessful(401, 'Incorrect username or password')
-    else:
-        auth.username = req.new_username
-        auth.hashed_password = pwd_hash(req.new_password)
-        sess.commit()
-        return
-
-
-@app.get('/api/whoami')
-async def whoami(sess: SessionDep, user: t.Annotated[str, Depends(current_user)]):
-    return {
-        'username': user
-    }
-
-# endregion auth
 # region error-handlers
-
 
 @app.exception_handler(e.APIUnsuccessful)
 async def api_unsuccessful_exception_handler(request: Request, exc: e.APIUnsuccessful):
@@ -341,8 +254,9 @@ async def query(sess: SessionDep):
 
 
 class ConnManager:
-    _events: t.Set[asyncio.Queue] = set()
-    _public_ws = t.Set[WebSocket] = set()  # type: ignore
+    def __init__(self):
+        self._events: t.Set[asyncio.Queue] = set()
+        self._public_ws: t.Set[WebSocket] = set() 
 
     async def evt_connect(self):
         try:
@@ -472,12 +386,16 @@ async def websocket_public(ws: WebSocket):
 
 # region routes-status
 
+status_router = APIRouter(
+    prefix='/api/status',
+    tags=['status']
+)
 
 class GetStatusResponse(BaseModel):
     status: int | None = 0
 
 
-@app.get('/api/status', response_model=GetStatusResponse)
+@status_router.get('/', response_model=GetStatusResponse)
 async def get_status(sess: SessionDep):
     meta = sess.exec(select(m.Metadata)).first()
     if meta:
@@ -492,7 +410,7 @@ class SetStatusRequest(BaseModel):
     status: int
 
 
-@app.post('/api/status', status_code=204)
+@status_router.post('/', status_code=204)
 async def set_status(sess: SessionDep, req: SetStatusRequest, user: t.Annotated[str, Depends(current_user)]):
     meta = sess.exec(select(m.Metadata)).first()
     if not meta:
@@ -510,8 +428,12 @@ async def set_status(sess: SessionDep, req: SetStatusRequest, user: t.Annotated[
 
 # region routes-device
 
+devices_router = APIRouter(
+    prefix='/api/devices',
+    tags=['devices']
+)
 
-@app.get('/api/devices/{device_id}', response_model=m.DeviceData)
+@devices_router.get('/{device_id}', response_model=m.DeviceData)
 async def get_device(sess: SessionDep, device_id: str):
     device = sess.get(m.DeviceData, device_id)
     if device:
@@ -527,7 +449,7 @@ class UpdateDeviceRequest(BaseModel):
     fields: dict | None = None
 
 
-@app.put('/api/devices/{device_id}', status_code=204)
+@devices_router.put('/{device_id}', status_code=204)
 async def update_device(sess: SessionDep, device_id: str, req: UpdateDeviceRequest, user: t.Annotated[str, Depends(current_user)]):
     device = sess.get(m.DeviceData, device_id)
     if device:
@@ -571,7 +493,7 @@ async def update_device(sess: SessionDep, device_id: str, req: UpdateDeviceReque
     return
 
 
-@app.delete('/api/devices/{device_id}', status_code=204)
+@devices_router.delete('/{device_id}', status_code=204)
 async def delete_device(sess: SessionDep, device_id: str, user: t.Annotated[str, Depends(current_user)]):
     device = sess.get(m.DeviceData, device_id)
     if device:
@@ -588,7 +510,7 @@ class GetDevicesResponse(BaseModel):
     devices: list[m.DeviceData]
 
 
-@app.get('/api/devices', response_model=GetDevicesResponse)
+@devices_router.get('/', response_model=GetDevicesResponse)
 async def get_devices(sess: SessionDep):
     devices = sess.exec(select(m.DeviceData)).all()
     return {
@@ -596,7 +518,7 @@ async def get_devices(sess: SessionDep):
     }
 
 
-@app.delete('/api/devices', status_code=204)
+@devices_router.delete('/', status_code=204)
 async def clear_devices(sess: SessionDep, user: t.Annotated[str, Depends(current_user)]):
     devices = sess.exec(select(m.DeviceData)).all()
     for d in devices:
@@ -610,4 +532,117 @@ async def clear_devices(sess: SessionDep, user: t.Annotated[str, Depends(current
 
 # endregion routes-device
 
+# region routes-user
+
+user_router = APIRouter(
+    prefix='/api/user',
+    tags=['user']
+)
+
+@user_router.post('/login', response_model=LoginResponse)
+async def login(
+    sess: SessionDep,
+    form_data: t.Annotated[OAuth2PasswordRequestForm, Depends()] = None,  # type: ignore
+    json_data: t.Annotated[LoginRequest, Body()] = None  # type: ignore
+):
+    if form_data:
+        username = form_data.username
+        password = form_data.password
+    elif json_data:
+        username = json_data.username
+        password = json_data.password
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail='Either form data or JSON data is required'
+        )
+
+    user = auth_user(sess, username=username, password=password)
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail='Incorrect username or password'
+        )
+
+    access_token_expires = timedelta(minutes=access_token_expires_minutes)
+    access_token = create_access_token(
+        sess, data={'sub': username}, expires_delta=access_token_expires
+    )
+    return {
+        'access_token': access_token,
+        'token_type': 'bearer'
+    }
+
+
+class CreateUserRequest(BaseModel):
+    username: str
+    password: str
+
+
+@user_router.post('/', status_code=204)
+async def create_user(sess: SessionDep, req: CreateUserRequest):
+    auth = sess.exec(select(m.AuthData)).first()
+    if auth:
+        raise e.APIUnsuccessful(403, 'User already exists')
+    else:
+        sess.add(m.AuthData(
+            username=req.username,
+            hashed_password=pwd_hash(req.password)
+        ))
+        sess.commit()
+        return
+
+
+class UpdateUserRequest(BaseModel):
+    old_username: str
+    old_password: str
+    new_username: str
+    new_password: str
+
+
+@user_router.put('/', status_code=204)
+async def update_user(sess: SessionDep, req: UpdateUserRequest):
+    auth = sess.exec(select(m.AuthData)).first()
+    if not auth:
+        raise e.APIUnsuccessful(404, 'No authentication data found')
+    elif auth.username != req.old_username:
+        raise e.APIUnsuccessful(401, 'Incorrect username or password')
+    elif not pwd_verify(req.old_password, auth.hashed_password):
+        raise e.APIUnsuccessful(401, 'Incorrect username or password')
+    else:
+        auth.username = req.new_username
+        auth.hashed_password = pwd_hash(req.new_password)
+        sess.commit()
+        return
+
+
+@user_router.get('/whoami')
+async def whoami(sess: SessionDep, user: t.Annotated[str, Depends(current_user)]):
+    return {
+        'username': user
+    }
+
+# endregion auth
+
+# region useless
+@app.get('/api/health', status_code=200)
+async def health():
+    return {'status': 'ok'}
+
+@app.get('/favicon.ico', status_code=200)
+async def favicon():
+    return
+
+# endregion useless
+
 # endregion routes
+
+# region main
+
+if __name__ == '__main__':
+    app.include_router(devices_router)
+    app.include_router(user_router)
+    app.include_router(status_router)
+    uvicorn.run(app, host=c.host, port=c.port)
+
+# endregion main

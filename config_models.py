@@ -48,6 +48,10 @@ class ConfigModel(BaseModel):
     配置 Model
     '''
 
+    host: str = '::'
+
+    port: int = 9010
+
     log: _LoggingConfigModel = _LoggingConfigModel()
 
     database: str = 'sqlite:///data.db'
