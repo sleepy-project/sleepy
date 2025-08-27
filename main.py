@@ -20,6 +20,7 @@ from sqlmodel import create_engine, SQLModel, Session, select
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from sse_starlette import EventSourceResponse, ServerSentEvent
+from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html, get_swagger_ui_oauth2_redirect_html
 
 from config import config as c
 import utils as u
@@ -105,12 +106,44 @@ async def lifespan(app: FastAPI):
     l.info('Bye.')
 
 app = FastAPI(
-    title='sleepy backend',
+    title='Sleepy Backend',
     version=f'{version_str} ({".".join(str(i) for i in version)})',
-    lifespan=lifespan
+    lifespan=lifespan,
+    docs_url=None,
+    # redoc_url=None
 )
 
 # endregion app-context
+
+# region custom-docs
+
+
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui_html():
+    return get_swagger_ui_html(
+        openapi_url=app.openapi_url,  # type: ignore
+        title=app.title + " - Swagger UI",
+        oauth2_redirect_url=app.swagger_ui_oauth2_redirect_url,
+        swagger_js_url="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.27.1/swagger-ui-bundle.js",
+        swagger_css_url="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.27.1/swagger-ui.css",
+    )
+
+
+@app.get(app.swagger_ui_oauth2_redirect_url, include_in_schema=False)  # type: ignore
+async def swagger_ui_redirect():
+    return get_swagger_ui_oauth2_redirect_html()
+
+# 暂时用不到
+# u need? pls wait for https://github.com/cdnjs/packages/issues/2049
+# @app.get("/redoc", include_in_schema=False)
+# async def redoc_html():
+#     return get_redoc_html(
+#         openapi_url=app.openapi_url,  # type: ignore
+#         title=app.title + " - ReDoc",
+#         redoc_js_url="https://unpkg.com/redoc@2/bundles/redoc.standalone.js",
+#     )
+
+# endregion custom-docs
 
 # region auth
 
@@ -256,7 +289,7 @@ async def query(sess: SessionDep):
 class ConnManager:
     def __init__(self):
         self._events: t.Set[asyncio.Queue] = set()
-        self._public_ws: t.Set[WebSocket] = set() 
+        self._public_ws: t.Set[WebSocket] = set()
 
     async def evt_connect(self):
         try:
@@ -391,6 +424,7 @@ status_router = APIRouter(
     tags=['status']
 )
 
+
 class GetStatusResponse(BaseModel):
     status: int | None = 0
 
@@ -432,6 +466,7 @@ devices_router = APIRouter(
     prefix='/api/devices',
     tags=['devices']
 )
+
 
 @devices_router.get('/{device_id}', response_model=m.DeviceData)
 async def get_device(sess: SessionDep, device_id: str):
@@ -539,6 +574,7 @@ user_router = APIRouter(
     tags=['user']
 )
 
+
 @user_router.post('/login', response_model=LoginResponse)
 async def login(
     sess: SessionDep,
@@ -625,9 +661,12 @@ async def whoami(sess: SessionDep, user: t.Annotated[str, Depends(current_user)]
 # endregion auth
 
 # region useless
+
+
 @app.get('/api/health', status_code=200)
 async def health():
     return {'status': 'ok'}
+
 
 @app.get('/favicon.ico', status_code=200)
 async def favicon():
@@ -639,10 +678,11 @@ async def favicon():
 
 # region main
 
+app.include_router(devices_router)
+app.include_router(user_router)
+app.include_router(status_router)
+
 if __name__ == '__main__':
-    app.include_router(devices_router)
-    app.include_router(user_router)
-    app.include_router(status_router)
     uvicorn.run(app, host=c.host, port=c.port)
 
 # endregion main
