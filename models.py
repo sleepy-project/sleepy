@@ -14,7 +14,7 @@ class AuthData(SQLModel, table=True):
     '''
     id: int = Field(default=0, primary_key=True, index=True)
     secret_key: str = Field(default=token_hex(32))
-    username: str = Field()
+    username: str = Field(min_length=1)
     hashed_password: str = Field()
 
 

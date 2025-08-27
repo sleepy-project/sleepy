@@ -11,7 +11,7 @@ import uvicorn
 
 from toml import load as load_toml
 from fastapi import FastAPI, APIRouter, Depends, HTTPException, Request, Body, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import jwt
 from jwt.exceptions import InvalidTokenError
@@ -126,6 +126,7 @@ async def custom_swagger_ui_html():
         oauth2_redirect_url=app.swagger_ui_oauth2_redirect_url,
         swagger_js_url="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.27.1/swagger-ui-bundle.js",
         swagger_css_url="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.27.1/swagger-ui.css",
+        swagger_favicon_url="https://ghsrc.wyf9.top/icons/sleepy_icon_nobg.png",
     )
 
 
@@ -135,6 +136,7 @@ async def swagger_ui_redirect():
 
 # 暂时用不到
 # u need? pls wait for https://github.com/cdnjs/packages/issues/2049
+# or use SLOW jsdelivr (at least it's slow for me)
 # @app.get("/redoc", include_in_schema=False)
 # async def redoc_html():
 #     return get_redoc_html(
@@ -282,6 +284,16 @@ async def query(sess: SessionDep):
         }
     else:
         raise e.APIUnsuccessful(500, 'Cannot read metadata')
+
+
+@app.get('/api/health', status_code=204)
+async def health():
+    return
+
+
+@app.get('/favicon.ico', status_code=200, include_in_schema=False)
+async def favicon():
+    return RedirectResponse('https://ghsrc.wyf9.top/icons/sleepy_icon_nobg.png', 302)
 
 # region routes-events
 
@@ -484,7 +496,7 @@ class UpdateDeviceRequest(BaseModel):
     fields: dict | None = None
 
 
-@devices_router.put('/{device_id}', status_code=204)
+@devices_router.put('/{device_id}', status_code=204, name='Create or update a device')
 async def update_device(sess: SessionDep, device_id: str, req: UpdateDeviceRequest, user: t.Annotated[str, Depends(current_user)]):
     device = sess.get(m.DeviceData, device_id)
     if device:
@@ -504,7 +516,12 @@ async def update_device(sess: SessionDep, device_id: str, req: UpdateDeviceReque
             updated['fields'] = req.fields
         if updated:
             device.last_updated = time()
+            meta = sess.exec(select(m.Metadata)).first()
+            if meta:
+                meta.last_updated = time()
+            sess.commit()
             await manager.evt_broadcast('device_updated', {'id': device_id, 'updated_fields': updated})
+        return
     else:
         # not exist -> create
         if not req.name:
@@ -520,12 +537,12 @@ async def update_device(sess: SessionDep, device_id: str, req: UpdateDeviceReque
             fields=fields
         )
         sess.add(device)
+        meta = sess.exec(select(m.Metadata)).first()
+        if meta:
+            meta.last_updated = time()
+        sess.commit()
         await manager.evt_broadcast('device_added', {'id': device_id, 'name': req.name, 'status': status, 'using': using, 'fields': fields})
-    meta = sess.exec(select(m.Metadata)).first()
-    if meta:
-        meta.last_updated = time()
-    sess.commit()
-    return
+        return Response(status_code=201)
 
 
 @devices_router.delete('/{device_id}', status_code=204)
@@ -575,7 +592,7 @@ user_router = APIRouter(
 )
 
 
-@user_router.post('/login', response_model=LoginResponse)
+@user_router.post('/', response_model=LoginResponse, name='Register (if no user exists) and login')
 async def login(
     sess: SessionDep,
     form_data: t.Annotated[OAuth2PasswordRequestForm, Depends()] = None,  # type: ignore
@@ -594,53 +611,55 @@ async def login(
         )
 
     user = auth_user(sess, username=username, password=password)
-    if not user:
-        raise HTTPException(
-            status_code=401,
-            detail='Incorrect username or password'
-        )
+    if user:
+        new_register = False
+    else:
+        # check if user exists or not
+        auth = sess.exec(select(m.AuthData)).first()
+        if auth:
+            raise HTTPException(
+                status_code=401,
+                detail='Incorrect username or password'
+            )
+        else:
+            # register & login
+            new_register = True
+            sess.add(m.AuthData(
+                username=username,
+                hashed_password=pwd_hash(password)
+            ))
+            sess.commit()
+            user = auth_user(sess, username=username, password=password)
 
     access_token_expires = timedelta(minutes=access_token_expires_minutes)
     access_token = create_access_token(
         sess, data={'sub': username}, expires_delta=access_token_expires
     )
-    return {
+
+    return JSONResponse({
         'access_token': access_token,
-        'token_type': 'bearer'
-    }
-
-
-class CreateUserRequest(BaseModel):
-    username: str
-    password: str
-
-
-@user_router.post('/', status_code=204)
-async def create_user(sess: SessionDep, req: CreateUserRequest):
-    auth = sess.exec(select(m.AuthData)).first()
-    if auth:
-        raise e.APIUnsuccessful(403, 'User already exists')
-    else:
-        sess.add(m.AuthData(
-            username=req.username,
-            hashed_password=pwd_hash(req.password)
-        ))
-        sess.commit()
-        return
+        'token_type': 'bearer',
+        'new_register': new_register
+    }, 201 if new_register else 200)
 
 
 class UpdateUserRequest(BaseModel):
-    old_username: str
-    old_password: str
+    old_username: str | None = None
+    old_password: str | None = None
     new_username: str
     new_password: str
 
 
-@user_router.put('/', status_code=204)
+@user_router.put('/', status_code=204, name='Create or update user')
 async def update_user(sess: SessionDep, req: UpdateUserRequest):
     auth = sess.exec(select(m.AuthData)).first()
     if not auth:
-        raise e.APIUnsuccessful(404, 'No authentication data found')
+        sess.add(m.AuthData(
+            username=req.new_username,
+            hashed_password=pwd_hash(req.new_password)
+        ))
+        sess.commit()
+        return Response(status_code=201)
     elif auth.username != req.old_username:
         raise e.APIUnsuccessful(401, 'Incorrect username or password')
     elif not pwd_verify(req.old_password, auth.hashed_password):
@@ -652,27 +671,19 @@ async def update_user(sess: SessionDep, req: UpdateUserRequest):
         return
 
 
-@user_router.get('/whoami')
-async def whoami(sess: SessionDep, user: t.Annotated[str, Depends(current_user)]):
+class WhoamiResponse(BaseModel):
+    username: str
+
+
+@user_router.get('/', response_model=WhoamiResponse)
+async def whoami(sess: SessionDep, user: t.Annotated[str, Depends(current_user)] = None):  # type: ignore
+    auth = sess.exec(select(m.AuthData)).first()
     return {
+        'registered': auth is not None,
         'username': user
     }
 
 # endregion auth
-
-# region useless
-
-
-@app.get('/api/health', status_code=200)
-async def health():
-    return {'status': 'ok'}
-
-
-@app.get('/favicon.ico', status_code=200)
-async def favicon():
-    return
-
-# endregion useless
 
 # endregion routes
 
