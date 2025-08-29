@@ -150,7 +150,7 @@ async def swagger_ui_redirect():
 # region auth
 
 pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
-oauth2 = OAuth2PasswordBearer(tokenUrl='api/login')
+oauth2 = OAuth2PasswordBearer(tokenUrl='api/user/')
 algorithm: str = 'HS256'
 access_token_expires_minutes: int = 30
 
@@ -189,15 +189,21 @@ def create_access_token(sess: SessionDep, data: dict, expires_delta: timedelta |
     return encoded_jwt
 
 
+credentials_exception = e.APIUnsuccessful(
+    code=401,
+    detail='Could not validate credentials',
+    headers={'WWW-Authenticate': 'Bearer'},
+)
+
+
 async def current_user(sess: SessionDep, token: t.Annotated[str, Depends(oauth2)]):
+    if not token:
+        raise credentials_exception
+
     auth = sess.exec(select(m.AuthData)).first()
     if not auth:
-        raise e.APIUnsuccessful(404, 'No authentication data found')
-    credentials_exception = e.APIUnsuccessful(
-        code=401,
-        detail='Could not validate credentials',
-        headers={'WWW-Authenticate': 'Bearer'},
-    )
+        raise e.APIUnsuccessful(401, 'No authentication data found', headers={'WWW-Authenticate': 'Bearer'})
+
     try:
         payload = jwt.decode(token, auth.secret_key, algorithms=[algorithm])
         username = payload.get('sub')
@@ -676,11 +682,21 @@ class WhoamiResponse(BaseModel):
 
 
 @user_router.get('/', response_model=WhoamiResponse)
-async def whoami(sess: SessionDep, user: t.Annotated[str, Depends(current_user)] = None):  # type: ignore
+async def whoami(user: t.Annotated[str, Depends(current_user)] = None):  # type: ignore
+    return {
+        'username': user
+    }
+
+
+class GetRegisteredResponse(BaseModel):
+    registered: bool
+
+
+@user_router.get('/registered')
+async def get_registered(sess: SessionDep):
     auth = sess.exec(select(m.AuthData)).first()
     return {
-        'registered': auth is not None,
-        'username': user
+        'registered': bool(auth)
     }
 
 # endregion auth
