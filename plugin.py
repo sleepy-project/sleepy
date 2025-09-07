@@ -718,6 +718,12 @@ class Plugin:
             return wrapper
         return decorator
 
+    def trigger_event(self, event):
+        '''
+        触发事件
+        '''
+        return PluginInit.instance.trigger_event(event)
+
     def init(self):
         '''
         初始化时将执行此函数 (可覆盖)

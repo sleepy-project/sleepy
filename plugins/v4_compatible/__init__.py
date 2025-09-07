@@ -7,12 +7,14 @@ from datetime import datetime
 
 import pytz
 from objtyping import to_primitive
+import flask
+from markupsafe import escape
 
-from plugin import Plugin
+import plugin as pl
 from .utils import require_secret, APIUnsuccessful
 
 l = getLogger(__name__)
-p = Plugin(
+p = pl.Plugin(
     name='v4_compatible',
     require_version_min=(5, 0, 0)
 )
@@ -22,13 +24,14 @@ c = p.global_config
 d = p.global_data
 datefmt = '%Y-%m-%d %H:%M:%S'
 
+
 @p._app.errorhandler(APIUnsuccessful)
 def apiunsuccessful_handler(err: APIUnsuccessful):
     return {
         'success': False,
         'code': err.code,
         'message': err.message
-    }, err.code
+    }, err.http
 
 # endregion init
 
@@ -86,13 +89,46 @@ if c.metrics.enabled:
 
 # endregion read-only
 
+# region status
+
+
+@p.global_route('/set')
+@require_secret()
+def set_status():
+    status = escape(flask.request.args.get('status'))
+    try:
+        status = int(status)
+    except:
+        raise APIUnsuccessful('bad request', "argument 'status' must be a number", 400)
+    d.status
+
+    if not status == d.status_id:
+        old_status = d.status
+        new_status = d.get_status(status)
+        evt = p.trigger_event(pl.StatusUpdatedEvent(
+            old_exists=old_status[0],
+            old_status=old_status[1],
+            new_exists=new_status[0],
+            new_status=new_status[1]
+        ))
+        if evt.interception:
+            return evt.interception
+        status = evt.new_status.id
+
+        d.status_id = status
+
+    return {
+        'success': True,
+        'set_to': status
+    }
+
+# endregion status
+
 # region end
 
 
 def init():
     l.info('Version 4 API Compatible Loaded!')
-    l.info('More Details: None')
-
 
 p.init = init
 

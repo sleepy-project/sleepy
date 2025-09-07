@@ -6,15 +6,19 @@
 
 当然, 我是建议你 **[使用最新版本 API](../../doc/api.md)** 的 (虽然这个兼容 api 可能会长期保留)
 
-## 没有完美复刻的点
+## 没有完全兼容的点
 
-1. 
+1. `/metrics` 的 `time` 值
+
+```jsonc
+"time": "2025-01-22 08:40:48.564728+08:00" // Original
+"time": "2025-09-07 23:32:29.592139" // Compatible
+// 少了末尾的 `+xx:xx`
+```
 
 ## v4 API Doc
 
 > From: https://github.com/sleepy-project/sleepy/blob/v4.0/doc/api.md
-
----
 
 ---
 

@@ -7,6 +7,7 @@ import flask
 
 l = getLogger(__name__)
 
+
 def require_secret():
     '''
     (装饰器) require_secret, 用于指定函数需要 secret 鉴权
@@ -46,7 +47,7 @@ def require_secret():
             # -1. no any secret
             else:
                 l.debug('[Auth] Verify secret Failed')
-                raise APIUnsuccessful(401, 'Wrong Secret')
+                raise APIUnsuccessful('not authorized', 'wrong secret', 401)
         return wrapper
     return decorator
 
@@ -57,16 +58,18 @@ class APIUnsuccessful(Exception):
     - v4 Legacy
     '''
 
-    def __init__(self, code: int = 500, message: str | None = None):
+    def __init__(self, code: str, message: str, http: int = 500):
         '''
         创建 APIUnsuccessful 异常
         - v4 Legacy
 
-        :param code: HTTP 状态码
+        :param http: HTTP 状态码
+        :param code: 返回代码 (?)
         :param message: 错误信息
         '''
         self.code = code
         self.message = message
+        self.http = http
 
     def __str__(self):
-        return f'{self.code} ({self.message})'
+        return f'{self.http} {self.code} ({self.message})'
