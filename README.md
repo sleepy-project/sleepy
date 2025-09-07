@@ -27,9 +27,12 @@
 - [QQ][link-qq]
 - [Telegram][link-tg]
 
-预计将在 1-3 周内完成 *(希望吧)*
+预计将在 1-2 个月内完成 *(希望吧)*
 
 如仍需使用此分支, 请仔细阅读本仓库的文档, 或找上面的 DeepWiki Ask.
+
+> [!TIP]
+> 以及 V4 API (即不带 `/api` 前缀的 API) 兼容**默认启用**, **文档: [`plugins/v4_compatible/README.md`](./plugins/v4_compatible/README.md)**
 
 ### Preview
 

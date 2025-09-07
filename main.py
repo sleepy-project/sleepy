@@ -18,7 +18,7 @@ Security Report: https://sleepy.siiway.top/t/security
 try:
     # built-in
     import logging
-    from datetime import datetime, timedelta, UTC
+    from datetime import datetime, timedelta, timezone
     import time
     from urllib.parse import urlparse, parse_qs, urlunparse
     import json
@@ -37,7 +37,6 @@ try:
     import utils as u
     from data import Data as data_init
     import plugin as pl
-    from models import redirect_map
 except:
     print(f'''
 Import module Failed!
@@ -268,19 +267,12 @@ def before_request():
     '''
     before_request:
     - 性能计数器
-    # - 旧 API 重定向
     - 检测主题参数, 设置 cookie & 去除参数
     - 设置会话变量 (theme, secret)
     '''
     flask.g.perf = u.perf_counter()
     fip = flask.request.headers.get('X-Real-IP') or flask.request.headers.get('X-Forwarded-For')
     flask.g.ipstr = ((flask.request.remote_addr or '') + (f' / {fip}' if fip else ''))
-
-    # --- old api redirect (/xxx -> /api/xxx)
-    # if flask.request.path in redirect_map:
-    #     new_path = redirect_map.get(flask.request.path, '/')
-    #     redirect_path = flask.request.full_path.replace(flask.request.path, new_path)
-    #     return u.cache_response(flask.redirect(redirect_path, 301))
 
     # --- get theme arg
     if flask.request.args.get('theme'):
@@ -379,7 +371,7 @@ def index():
         _dirname='cards',
         username=c.page.name,
         status=d.status_dict[1],
-        last_updated=datetime.fromtimestamp(d.last_updated, UTC).strftime(f'%Y-%m-%d %H:%M:%S') + ' (UTC+8)'
+        last_updated=datetime.fromtimestamp(d.last_updated, timezone.utc).strftime(f'%Y-%m-%d %H:%M:%S') + ' (UTC+8)'
     )
     more_info_card: str = render_template(  # type: ignore
         'more_info.index.html',

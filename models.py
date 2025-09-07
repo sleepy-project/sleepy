@@ -343,20 +343,3 @@ env_vaildate_json_keys = [
 此列表中的键将会尝试解析为 json
 (不包含 `sleepy_`)
 '''
-
-redirect_map = {
-    '/query': '/api/status/query',
-    '/status_list': '/api/status/list',
-    '/metrics': '/api/metrics',
-    '/set': '/api/status/set',
-    '/device/set': '/api/device/set',
-    '/device/remove': '/api/device/remove',
-    '/device/clear': '/api/device/clear',
-    '/device/private_mode': '/api/device/private',
-    '/metadata': '/api/meta',
-    '/verify-secret': '/panel/verify',
-    '/events': '/api/status/events'
-}
-'''
-将旧版 API 地址重定向到新版 (`/xxx` -> `/api/xxx`)
-'''

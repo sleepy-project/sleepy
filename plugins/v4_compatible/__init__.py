@@ -4,6 +4,8 @@
 
 from logging import getLogger
 from datetime import datetime
+import time
+import json
 
 import pytz
 from objtyping import to_primitive
@@ -29,6 +31,7 @@ class V4Config(BaseModel):
 p = pl.Plugin(
     name='v4_compatible',
     require_version_min=(5, 0, 0),
+    require_version_max=(6, 0, 0),
     config=V4Config
 )
 
@@ -55,6 +58,10 @@ def apiunsuccessful_handler(err: APIUnsuccessful):
 
 @p.global_route('/query')
 @cross_origin(c.main.cors_origins)
+def query_req():
+    return query()
+
+
 def query():
     status = d.status_dict[1]
     del status['id']
@@ -76,6 +83,57 @@ def query():
         'refresh': c.status.refresh_interval,
         'device_status_slice': c.status.device_slice
     }
+
+
+def _event_stream(ipstr: str):
+    last_updated = None
+    last_heartbeat = time.time()
+
+    l.info(f'[SSE] Event stream connected: {ipstr}')
+    while True:
+        current_time = time.time()
+        # 检查数据是否已更新
+        current_updated = d.last_updated
+
+        # 如果数据有更新, 发送更新事件并重置心跳计时器
+        if last_updated != current_updated:
+            last_updated = current_updated
+            # 重置心跳计时器
+            last_heartbeat = current_time
+
+            # 获取 /query 返回数据
+            update_data = json.dumps(query(), ensure_ascii=False)
+            yield f'event: update\ndata: {update_data}\n\n'
+
+        # 只有在没有数据更新的情况下才检查是否需要发送心跳
+        elif current_time - last_heartbeat >= 30:
+            timenow = datetime.now(tz)
+            yield f"event: heartbeat\ndata: {timenow.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+            last_heartbeat = current_time
+
+        time.sleep(1)  # 每秒检查一次更新
+
+
+@p.global_route('/events')
+@cross_origin(c.main.cors_origins)
+def events():
+    '''
+    SSE 事件流，用于推送状态更新
+    - Method: **GET**
+    '''
+    evt = p.trigger_event(pl.StreamConnectedEvent(0))
+    if evt.interception:
+        return evt.interception
+    ipstr: str = flask.g.ipstr
+
+    response = flask.Response(_event_stream(ipstr), mimetype='text/event-stream', status=200)
+    response.headers['Cache-Control'] = 'no-cache'  # 禁用缓存
+    response.headers['X-Accel-Buffering'] = 'no'  # 禁用 Nginx 缓冲
+    response.call_on_close(lambda: (
+        l.info(f'[SSE] Event stream disconnected: {ipstr}'),
+        p.trigger_event(pl.StreamDisconnectedEvent())
+    ))
+    return response
 
 
 @p.global_route('/status_list')
