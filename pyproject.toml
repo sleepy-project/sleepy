@@ -34,5 +34,5 @@ releasenotes = "https://github.com/sleepy-project/sleepy/releases"
 issues = "https://github.com/sleepy-project/sleepy/issues"
 
 [tool.sleepy-plugin]
-version = [5, 0, 0]
-version-str = "5.0-dev-20250801"
+version = [5, 1, 0]
+version-str = "5.1-dev-20250908"
