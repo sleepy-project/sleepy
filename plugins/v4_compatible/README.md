@@ -6,6 +6,17 @@
 
 当然, 我是建议你 **[使用最新版本 API](../../doc/api.md)** 的 (虽然这个兼容 api 可能会长期保留)
 
+## 配置
+
+```yaml
+plugin:
+  v4_compatible:
+    simulate_save_data: false
+    # 是否模拟 /save_data 的正常返回
+    # - true: 正常返回 success & 模拟的 data.json 数据
+    # - false (默认): 报错 Deprecated
+```
+
 ## 没有完全兼容的点
 
 1. `/metrics` 的 `time` 值
@@ -15,6 +26,8 @@
 "time": "2025-09-07 23:32:29.592139" // Compatible
 // 少了末尾的 `+xx:xx`
 ```
+
+2. SQL 数据库报错时仍然使用 v5 的 APIUnsuccessful, 会多出 `details` 字段, 同时 `code` 变为标准的 HTTP Error 代码对应文本
 
 ## v4 API Doc
 

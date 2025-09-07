@@ -8,21 +8,36 @@ from datetime import datetime
 import pytz
 from objtyping import to_primitive
 import flask
+from flask_cors import cross_origin
 from markupsafe import escape
+from pydantic import BaseModel
 
 import plugin as pl
 from .utils import require_secret, APIUnsuccessful
+import utils as u
 
-l = getLogger(__name__)
+
+class V4Config(BaseModel):
+    simulate_save_data: bool = False
+    '''
+    是否模拟 /save_data 的正常返回
+    - True: 正常返回 success & 模拟的 data.json 数据
+    - False: 报错 Deprecated
+    '''
+
+
 p = pl.Plugin(
     name='v4_compatible',
-    require_version_min=(5, 0, 0)
+    require_version_min=(5, 0, 0),
+    config=V4Config
 )
-tz = pytz.timezone(p.global_config.main.timezone)
 
 c = p.global_config
 d = p.global_data
+l = getLogger(__name__)
+tz = pytz.timezone(p.global_config.main.timezone)
 datefmt = '%Y-%m-%d %H:%M:%S'
+conf: V4Config = p.config
 
 
 @p._app.errorhandler(APIUnsuccessful)
@@ -39,6 +54,7 @@ def apiunsuccessful_handler(err: APIUnsuccessful):
 
 
 @p.global_route('/query')
+@cross_origin(c.main.cors_origins)
 def query():
     status = d.status_dict[1]
     del status['id']
@@ -63,6 +79,7 @@ def query():
 
 
 @p.global_route('/status_list')
+@cross_origin(c.main.cors_origins)
 def status_list():
     return [
         to_primitive(i) for i in c.status.status_list
@@ -71,6 +88,7 @@ def status_list():
 
 if c.metrics.enabled:
     @p.global_route('/metrics')
+    @cross_origin(c.main.cors_origins)
     def metrics():
         now = datetime.now(tz)
         metric = d.metrics_resp
@@ -93,6 +111,7 @@ if c.metrics.enabled:
 
 
 @p.global_route('/set')
+@cross_origin(c.main.cors_origins)
 @require_secret()
 def set_status():
     status = escape(flask.request.args.get('status'))
@@ -124,11 +143,177 @@ def set_status():
 
 # endregion status
 
+# region device
+
+
+@p.global_route('/device/set', methods=['GET', 'POST'])
+@cross_origin(c.main.cors_origins)
+@require_secret()
+def device_set():
+    # 分 get / post 从 params / body 获取参数
+    if flask.request.method == 'GET':
+        args = dict(flask.request.args)
+        device_id = args.get('id', None)
+        device_show_name = args.get('show_name', None)
+        device_using = u.tobool(args.get('using', None))
+        device_status = args.get('app_name', None)
+
+        evt = p.trigger_event(pl.DeviceSetEvent(
+            device_id=device_id,
+            show_name=device_show_name,
+            using=device_using,
+            status=device_status,
+            fields={}
+        ))
+        if evt.interception:
+            return evt.interception
+
+        d.device_set(
+            id=evt.device_id,
+            show_name=evt.show_name,
+            using=evt.using,
+            status=evt.status,
+            fields=evt.fields
+        )
+
+    elif flask.request.method == 'POST':
+        try:
+            req: dict = flask.request.get_json()
+
+            evt = p.trigger_event(pl.DeviceSetEvent(
+                device_id=req.get('id'),
+                show_name=req.get('show_name'),
+                using=req.get('using'),
+                status=req.get('app_name'),
+                fields={}
+            ))
+            if evt.interception:
+                return evt.interception
+
+            d.device_set(
+                id=evt.device_id,
+                show_name=evt.show_name,
+                using=evt.using,
+                status=evt.status,
+                fields=evt.fields
+            )
+        except Exception as e:
+            if isinstance(e, u.APIUnsuccessful):
+                raise e
+            else:
+                raise APIUnsuccessful('bad request', 'missing param or wrong param type', 400)
+
+    return {
+        'success': True,
+        'code': 'OK'
+    }
+
+
+@p.global_route('/device/remove')
+@cross_origin(c.main.cors_origins)
+@require_secret()
+def device_remove():
+    device_id = flask.request.args.get('id')
+    if not device_id:
+        raise APIUnsuccessful('not found', 'cannot find item', 404)
+
+    device = d.device_get(device_id)
+
+    if device:
+        evt = p.trigger_event(pl.DeviceRemovedEvent(
+            exists=True,
+            device_id=device_id,
+            show_name=device.show_name,
+            using=device.using,
+            status=device.status,
+            fields=device.fields
+        ))
+    else:
+        raise APIUnsuccessful('not found', 'cannot find item', 404)
+
+    if evt.interception:
+        return evt.interception
+
+    d.device_remove(evt.device_id)
+
+    return {
+        'success': True,
+        'code': 'OK'
+    }
+
+
+@p.global_route('/device/clear')
+@cross_origin(c.main.cors_origins)
+@require_secret()
+def device_clear():
+    evt = p.trigger_event(pl.DeviceClearedEvent(d._raw_device_list))
+    if evt.interception:
+        return evt.interception
+
+    d.device_clear()
+
+    return {
+        'success': True,
+        'code': 'OK'
+    }
+
+
+@p.global_route('/device/private_mode')
+@cross_origin(c.main.cors_origins)
+@require_secret()
+def device_private_mode():
+    private = u.tobool(flask.request.args.get('private'))
+    if private == None:
+        raise APIUnsuccessful('invaild request', '"private" arg only supports boolean type', 400)
+    elif not private == d.private_mode:
+        evt = p.trigger_event(pl.PrivateModeChangedEvent(d.private_mode, private))
+        if evt.interception:
+            return evt.interception
+
+        d.private_mode = evt.new_status
+
+    return {
+        'success': True,
+        'code': 'OK'
+    }
+
+# endregion device
+
+# region storage
+
+
+@p.global_route('/save_data')
+@cross_origin(c.main.cors_origins)
+@require_secret()
+def save_data():
+    if conf.simulate_save_data:
+        devices = d.device_list
+        for dev in devices.values():
+            del dev['fields']
+            dev['app_name'] = dev['status']
+            del dev['status']
+            del dev['last_updated']
+            del dev['id']
+        return {
+            'success': True,
+            'code': 'OK',
+            'data': {
+                'status': d.status_id,
+                'device_status': devices,
+                'last_updated': datetime.fromtimestamp(d.last_updated, tz).strftime(datefmt)
+            }
+        }
+    else:
+        raise APIUnsuccessful('exception', 'Save data function is deprecated!', 500)
+
+# endregion storage
+
 # region end
 
 
 def init():
     l.info('Version 4 API Compatible Loaded!')
+
 
 p.init = init
 
