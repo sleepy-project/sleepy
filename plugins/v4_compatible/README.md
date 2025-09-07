@@ -6,6 +6,10 @@
 
 当然, 我是建议你 **[使用最新版本 API](../../doc/api.md)** 的 (虽然这个兼容 api 可能会长期保留)
 
+## 没有完美复刻的点
+
+1. 
+
 ## v4 API Doc
 
 > From: https://github.com/sleepy-project/sleepy/blob/v4.0/doc/api.md

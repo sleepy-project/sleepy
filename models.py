@@ -315,7 +315,9 @@ class ConfigModel(BaseModel):
     status: _StatusConfigModel = _StatusConfigModel()
     metrics: _MetricsConfigModel = _MetricsConfigModel()
 
-    plugins_enabled: list[str] = []
+    plugins_enabled: list[str] = [
+        'v4_compatible' # 默认启用 v4 兼容
+    ]
     '''
     `plugins_enabled`
     启用的插件列表，按从上到下的顺序加载

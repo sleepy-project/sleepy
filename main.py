@@ -268,7 +268,7 @@ def before_request():
     '''
     before_request:
     - 性能计数器
-    - 旧 API 重定向
+    # - 旧 API 重定向
     - 检测主题参数, 设置 cookie & 去除参数
     - 设置会话变量 (theme, secret)
     '''
@@ -277,10 +277,10 @@ def before_request():
     flask.g.ipstr = ((flask.request.remote_addr or '') + (f' / {fip}' if fip else ''))
 
     # --- old api redirect (/xxx -> /api/xxx)
-    if flask.request.path in redirect_map:
-        new_path = redirect_map.get(flask.request.path, '/')
-        redirect_path = flask.request.full_path.replace(flask.request.path, new_path)
-        return u.cache_response(flask.redirect(redirect_path, 301))
+    # if flask.request.path in redirect_map:
+    #     new_path = redirect_map.get(flask.request.path, '/')
+    #     redirect_path = flask.request.full_path.replace(flask.request.path, new_path)
+    #     return u.cache_response(flask.redirect(redirect_path, 301))
 
     # --- get theme arg
     if flask.request.args.get('theme'):
