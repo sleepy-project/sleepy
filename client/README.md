@@ -387,7 +387,7 @@ https://github.com/sleepy-project/sleepy/blob/7fc21380a259247533db76f3a0443fa550
 
 因为检测锁屏和关机前上报未在使用实现困难，分为两个脚本，`mac_device_sleepy_AS`为主脚本，`mac_device_sleepy_AS_false`为停止并上报脚本
 
-主脚本也支持长时间窗口无变化上报未在使用、忽略特定窗口/进程，如果觉得关机前启动副脚本不够便利也可以搭配快捷指令使用，创建一个快捷指令选择“运行AppleScript”和“关机”就可以当一个伪一键关机脚本使用，或者其他方式搭配“运行AppleScript”使用
+主脚本也支持长时间窗口无变化上报未在使用、忽略特定窗口/进程，如果觉得关机前启动副脚本不够便利也可以搭配快捷指令使用，创建一个快捷指令选择“运行AppleScript”和“关机”就可以当一个伪一键关机脚本使用，或者其他方式搭配“运行AppleScript”使用。
 
 #### 使用
 
@@ -397,7 +397,7 @@ https://github.com/sleepy-project/sleepy/blob/7fc21380a259247533db76f3a0443fa550
 <img width="520" height="520" alt="截屏2025-08-06 01 26 39" src="https://github.com/user-attachments/assets/df481c9a-b5f6-47d8-89fd-911fa73cf9fa" />
 <img width="520" height="520" alt="截屏2025-08-06 01 27 21" src="https://github.com/user-attachments/assets/f65a37eb-3d43-4eae-a122-f8b3cfa42bec" />
 
-根据首行提示滑到中间分别修改两个脚本的具体配置并保存
+根据首行提示滑到中底部分别修改两个脚本的具体配置并保存（找不到位置可以使用Command+F查找"配置项"）
 
 ```
 	===== 配置项 =====
@@ -412,12 +412,22 @@ https://github.com/sleepy-project/sleepy/blob/7fc21380a259247533db76f3a0443fa550
 	set inputIdleThresholdSeconds to 600 --  设置窗口未变化上报前提：鼠标空闲时间，只有鼠标也达标才会上报，默认10分钟 单位秒
 ```
 
-然后在保存的位置双击启动`mac_device_sleepy_AS`给予辅助权限就能够后台检测窗口名称上报，关机前启动`mac_device_sleepy_AS_false`就可以停止主脚本并上报未在使用
+然后在保存的位置双击启动`mac_device_sleepy_AS`分别给予辅助权限、自动化权限就能够后台检测窗口名称上报，关机前启动`mac_device_sleepy_AS_false`就可以停止主脚本并上报未在使用。
+
+<img width="520" height="520" alt="截屏2025-09-07 19 08 55" src="https://github.com/user-attachments/assets/6ca50fe1-40ef-4e26-a2de-f74084a39792" style="display: inline-block" />
+<img width="320" height="320" alt="截屏2025-09-07 17 46 00" src="https://github.com/user-attachments/assets/e95b46b3-89ad-4ff7-a92c-718920c1c914" style="display: inline-block" />
+
+
+权限说明：
+
+辅助权限为主要权限，用来检测窗口名进程名（权限入口：系统设置→隐私与安全性→辅助功能）
+
+自动化权限用于更精准的获取浏览器标签页标题，因为用到了浏览器自身的一些API所以需要这个权限访问（权限入口：系统设置→隐私与安全性→自动化）
 
 > [!WARNING]
 > *mac os对AppleScript权限给予有问题，请尽量保存运行后不要更改文件位置也不要再次更改内容*
 > 
-> 如果只上报进程名而不是窗口名说明权限有问题，请在 系统设置→隐私与安全性→辅助功能 里将本脚本删除再手动添加给予权限即可正常
+> 如果只上报进程名而不是窗口名说明辅助权限有问题，请在 系统设置→隐私与安全性→辅助功能 里将本脚本删除再手动添加给予权限即可正常
 
 #### 加入启动项开机启动
 
