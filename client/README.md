@@ -144,6 +144,27 @@ pip install winrt.windows.media.control winrt.windows.foundation
 pip install psutil
 ```
 
+### 启动
+
+```bat
+python3 ./cilent/win_device.py
+```
+
+### Win Fast Settings
+
+> by: [@CR400AFC2214](https://github.com/tianyuzpr) <br/>
+
+这是一个基于 win_device.py 的快速调整 sleepy 设置的小脚本，基于tkinter
+
+**请确保您在使用前已经完成了在 win_device.py 中的配置！**
+
+#### 启动
+
+
+```bat
+python3 ./cilent/win_settings.py
+```
+
 ### 自启动
 
 有两种方式:
