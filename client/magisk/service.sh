@@ -92,7 +92,7 @@ send_status() {
   # log "尝试请求URL: $URL"
   # log "请求数据: {\"secret\": \"${SECRET}\", \"id\": \"${device_id}\", \"show_name\": \"${device_model}\", \"using\": ${using}, \"app_name\": \"$res_up\"}"
 
-  http_code=$(curl -v -s --connect-timeout 35 --max-time 100 -w "%{http_code}" -o ./curl_body "$URL" \
+  http_code=$(curl -s --connect-timeout 35 --max-time 100 -w "%{http_code}" -o ./curl_body "$URL" \
   -X POST \
   -H "Content-Type: application/json" \
   -d '{"secret": "'"${SECRET}"'", "id": "'"${DEVICE_ID}"'", "show_name": "'"${device_model}"'", "using": '"${using}"', "app_name": "'"$res_up"'"}')
