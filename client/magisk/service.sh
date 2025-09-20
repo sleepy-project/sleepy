@@ -4,6 +4,15 @@
 SCRIPT_DIR=${0%/*}
 CONFIG_FILE="${SCRIPT_DIR}/config.cfg"
 . "$CONFIG_FILE"
+
+# 清理变量中的换行符
+SECRET=$(echo "$SECRET" | tr -d '\r\n')
+DEVICE_ID=$(echo "$DEVICE_ID" | tr -d '\r\n')
+URL=$(echo "$URL" | tr -d '\r\n')
+LOG_NAME=$(echo "$LOG_NAME" | tr -d '\r\n')
+DEVICE_NAME=$(echo "$DEVICE_NAME" | tr -d '\r\n')
+CACHE=$(echo "$CACHE" | tr -d '\r\n')
+
 # ========== 日志系统 ==========
 LOG_PATH="${SCRIPT_DIR}/${LOG_NAME}"
 log() {
@@ -79,10 +88,16 @@ send_status() {
 
   log "$res_up"
   
-  http_code=$(curl -s --connect-timeout 35 --max-time 100 -w "%{http_code}" -o ./curl_body "$URL" \
-    -X POST \
-    -H "Content-Type: application/json" \
-    -d '{"secret": "'"${SECRET}"'", "id": 0, "show_name": "'"${device_model}"'", "using": '"${using}"', "status": "'"$res_up"'"}')
+  # send_status调试用
+  # log "尝试请求URL: $URL"
+  # log "请求数据: {\"secret\": \"${SECRET}\", \"id\": \"${device_id}\", \"show_name\": \"${device_model}\", \"using\": ${using}, \"app_name\": \"$res_up\"}"
+
+  http_code=$(curl -v -s --connect-timeout 35 --max-time 100 -w "%{http_code}" -o ./curl_body "$URL" \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"secret": "'"${SECRET}"'", "id": "'"${DEVICE_ID}"'", "show_name": "'"${device_model}"'", "using": '"${using}"', "app_name": "'"$res_up"'"}')
+
+  log "HTTP状态码: $http_code"
 
   if [ "$http_code" -ne 200 ]; then
     log "警告：请求失败，状态码 $http_code，响应内容：$(cat ./curl_body)"
@@ -99,8 +114,10 @@ device_model=$(getprop ro.product.model)
 android_version=$(getprop ro.build.version.release)
 log "设备信息: ${device_model}, Android ${android_version}，等待一分钟"
 
-# 可以在这里覆盖设备显示名称
-device_model="OnePlus ACE3"
+# 覆盖设备显示名称
+if [ -n "${DEVICE_NAME}" ]; then
+  device_model="${DEVICE_NAME}"
+fi
 
 sleep 60
 log "开！"
