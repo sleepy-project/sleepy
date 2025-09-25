@@ -357,8 +357,7 @@ async def redirect_api(request: Request, call_next):
 
     if request.query_params.get('theme'):
         theme = request.query_params.get('theme')
-        url=request.url
-        url.remove_query_params('theme')
+        url=request.url.remove_query_params('theme')
         l.debug(f'Redirecting to new url: {url}')
         resp = RedirectResponse(str(url), status_code=302)
         resp.set_cookie('sleepy-theme', theme, samesite='lax')
