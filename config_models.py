@@ -67,6 +67,8 @@ class ConfigModel(BaseModel):
     Event-Stream Ping 间隔 (单位: 秒, 设置为 0 禁用)
     '''
 
+    default_theme: str = 'default'
+
 # endregion user-config
 
 

@@ -59,6 +59,35 @@ class CustomFormatter(Formatter):
         return formatted_message
 
 
+def cache_response(resp):
+    '''
+    给返回添加缓存标头
+    '''
+    resp.headers['Cache-Control'] = 'max-age=86400, must-revalidate'
+    resp.headers['Expires'] = '86400'
+    return resp
+
+
+def no_cache_response(resp):
+    '''
+    给返回添加阻止缓存标头
+    '''
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    return resp
+
+
+
+def is_file_exist(path: str) -> bool:
+    '''
+    检查文件是否存在
+
+    :param path: 文件路径
+    :return: 是否存在
+    '''
+    return Path(path).exists()
+
 def current_dir() -> str:
     '''
     获取当前主程序所在目录

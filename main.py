@@ -11,8 +11,9 @@ import uvicorn
 
 from toml import load as load_toml
 from fastapi import FastAPI, APIRouter, Depends, HTTPException, Request, Body, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.templating import Jinja2Templates
 import jwt
 from jwt.exceptions import InvalidTokenError
 from passlib.context import CryptContext
@@ -21,6 +22,7 @@ from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from sse_starlette import EventSourceResponse, ServerSentEvent
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html, get_swagger_ui_oauth2_redirect_html
+from werkzeug.utils import safe_join
 
 from config import config as c
 import utils as u
@@ -112,6 +114,8 @@ app = FastAPI(
     docs_url=None,
     # redoc_url=None
 )
+
+templates=Jinja2Templates(directory="./")
 
 # endregion app-context
 
@@ -226,6 +230,83 @@ class LoginResponse(BaseModel):
     access_token: str
     token_type: str = 'bearer'
 
+# ========== Theme ==========
+
+# region theme
+
+def render_template(filename: str, _dirname: str = 'templates', _theme: str | None = None, **context) -> str | None:
+    '''
+    渲染模板 (使用指定主题)
+
+    :param filename: 文件名
+    :param _dirname: `theme/[主题名]/<dirname>/<filename>`
+    :param _theme: 主题 (未指定则从 `flask.g.theme` 读取)
+    :param **context: 将传递给 `flask.render_template_string` 的模板上下文
+    '''
+    _theme = _theme or c.default_theme
+    jinja_env=templates.env
+    template_path = safe_join('theme', f'{_theme}/{_dirname}/{filename}')
+
+    # 1. 返回主题
+    #if not content is None:
+    if u.is_file_exist(template_path):
+        l.debug(f'[theme] return template {_dirname}/{filename} from theme {_theme}')
+        return jinja_env.get_template(template_path).render(**context)
+
+    # 2. 主题不存在 -> fallback 到默认
+    #content = d.get_cached_text('theme', f'default/{_dirname}/{filename}')
+    template_path = safe_join('theme', f'default/{_dirname}/{filename}')
+    if u.is_file_exist(template_path):
+        l.debug(f'[theme] return template {_dirname}/{filename} from default theme')
+        return jinja_env.get_template(template_path).render(**context)
+
+    # 3. 默认也不存在 -> 404
+    l.warning(f'[theme] template {_dirname}/{filename} not found')
+    return None
+
+@app.get('/static/{filename:path}',name="static")  # keep name for url_for('static', filename=...)
+def static_proxy(filename: str, request: Request):
+    '''
+    静态文件的主题处理 (重定向到 /static-themed/主题名/文件名)
+    '''
+    # 重定向
+    return u.no_cache_response(RedirectResponse(f'/static-themed/{request.state.theme}/{filename}', 302))
+
+@app.get('/static-themed/{theme}/{filename:path}')
+def static_themed(theme: str, filename: str):
+    '''
+    经过主题分隔的静态文件 (便于 cdn / 浏览器 进行缓存)
+    '''
+    try:
+        # 1. 返回主题
+        resp = FileResponse(safe_join('theme', f'{theme}/static/{filename}'))
+        l.debug(f'[theme] return static file {filename} from theme {theme}')
+        return resp
+    except FileNotFoundError:
+        # 2. 主题不存在 (而且不是默认) -> fallback 到默认
+        if theme != 'default':
+            l.debug(f'[theme] static file {filename} not found in theme {theme}, fallback to default')
+            return u.no_cache_response(RedirectResponse(f'/static-themed/default/{filename}', 302))
+
+        # 3. 默认主题也没有 -> 404
+        else:
+            l.warning(f'[theme] static file {filename} not found')
+            raise u.no_cache_response(HTTPException(status_code=404, detail=f'Static file {filename} in theme {theme} not found'))
+
+
+@app.get('/default/{filename:path}')
+def static_default_theme(filename: str):
+    '''
+    兼容在非默认主题中使用:
+    ```
+    import { ... } from "../../default/static/utils";
+    ```
+    '''
+    if not filename.endswith('.js'):
+        filename += '.js'
+    return FileResponse(safe_join('theme/default', filename))
+
+# endregion theme
 
 # region error-handlers
 
@@ -249,6 +330,22 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     }, headers=exc.headers)
 
 # endregion error-handlers
+
+# region inject
+
+@app.middleware('http')
+async def read_themes(request: Request, call_next):
+    # set context vars
+    if 'sleepy-theme' in request.cookies:
+        # got sleepy-theme
+        request.state.theme = request.cookies['sleepy-theme']
+    else:
+        # use default theme
+        request.state.theme = c.default_theme
+    return await call_next(request)
+
+
+# endregion inject
 
 # region routes
 
