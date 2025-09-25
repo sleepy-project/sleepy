@@ -277,21 +277,20 @@ def static_themed(theme: str, filename: str):
     '''
     经过主题分隔的静态文件 (便于 cdn / 浏览器 进行缓存)
     '''
-    try:
-        # 1. 返回主题
-        resp = FileResponse(safe_join('theme', f'{theme}/static/{filename}'))
+    filepath = safe_join('theme', f'{theme}/static/{filename}')
+    # 1. 返回主题
+    if u.is_file_exist(filepath):
+        resp = FileResponse(filepath)
         l.debug(f'[theme] return static file {filename} from theme {theme}')
         return resp
-    except FileNotFoundError:
-        # 2. 主题不存在 (而且不是默认) -> fallback 到默认
-        if theme != 'default':
-            l.debug(f'[theme] static file {filename} not found in theme {theme}, fallback to default')
-            return u.no_cache_response(RedirectResponse(f'/static-themed/default/{filename}', 302))
-
-        # 3. 默认主题也没有 -> 404
-        else:
-            l.warning(f'[theme] static file {filename} not found')
-            raise u.no_cache_response(HTTPException(status_code=404, detail=f'Static file {filename} in theme {theme} not found'))
+    # 2. 主题不存在 (而且不是默认) -> fallback 到默认
+    elif theme != 'default':
+        l.debug(f'[theme] static file {filename} not found in theme {theme}, fallback to default')
+        return u.no_cache_response(RedirectResponse(f'/static-themed/default/{filename}', 302))
+    # 3. 默认主题也没有 -> 404
+    else:
+        l.warning(f'[theme] static file {filename} not found')
+        raise u.no_cache_response(HTTPException(status_code=404, detail=f'Static file {filename} in theme {theme} not found'))
 
 
 @app.get('/default/{filename:path}')
