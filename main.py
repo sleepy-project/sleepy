@@ -344,6 +344,29 @@ async def read_themes(request: Request, call_next):
         request.state.theme = c.default_theme
     return await call_next(request)
 
+@app.middleware('http')
+async def redirect_api(request: Request, call_next):
+    from models import redirect_map
+    if request.url.path in redirect_map:
+        new_path = redirect_map.get(request.url.path, '/')
+        query = request.url.query
+        if query:
+            redirect_path = f'{new_path}?{query}'
+        else:
+            redirect_path = new_path
+        return RedirectResponse(redirect_path, status_code=301)
+
+    if request.query_params.get('theme'):
+        theme = request.query_params.get('theme')
+        url=request.url
+        url.remove_query_params('theme')
+        l.debug(f'Redirecting to new url: {url}')
+        resp = RedirectResponse(str(url), status_code=302)
+        resp.set_cookie('sleepy-theme', theme, samesite='lax')
+        return resp
+
+    return await call_next(request)
+
 
 # endregion inject
 

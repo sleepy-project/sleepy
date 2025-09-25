@@ -37,3 +37,18 @@ class DeviceData(SQLModel, table=True):
     using: bool = Field(default=True)
     fields: t.Dict[str, t.Any] = Field(default={}, sa_type=JSON)
     last_updated: float = Field(default=time())
+
+
+redirect_map = {
+    '/query': '/api/status/query',
+    '/status_list': '/api/status/list',
+    '/metrics': '/api/metrics',
+    '/set': '/api/status/set',
+    '/device/set': '/api/device/set',
+    '/device/remove': '/api/device/remove',
+    '/device/clear': '/api/device/clear',
+    '/device/private_mode': '/api/device/private',
+    '/metadata': '/api/meta',
+    '/verify-secret': '/panel/verify',
+    '/events': '/api/status/events'
+}
