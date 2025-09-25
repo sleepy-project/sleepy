@@ -348,8 +348,7 @@ async def redirect_api(request: Request, call_next):
     from models import redirect_map
     if request.url.path in redirect_map:
         new_path = redirect_map.get(request.url.path, '/')
-        query = request.url.query
-        if query:
+        if query := request.url.query:
             redirect_path = f'{new_path}?{query}'
         else:
             redirect_path = new_path
