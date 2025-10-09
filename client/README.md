@@ -225,7 +225,7 @@ python win_settings.py
 ## [AutoxjsScript](./autoxjs_device.js)
 
 > by: [@wyf9](https://github.com/wyf9) <br/>
-> Co-authored-by: [@NyaOH-Nahida](https://github.com/NyaOH-Nahida) <br/>
+> Co-authored-by: [@VanillaNahida](https://github.com/VanillaNahida) <br/>
 > Co-authored-by: [@makabaka-andy](https://github.com/makabaka-andy)
 
 使用 [Autox.js](https://web.archive.org/web/20241224233444/https://github.com/kkevsekk1/AutoX) 编写的安卓自动更新状态脚本
