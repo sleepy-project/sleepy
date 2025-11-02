@@ -1,14 +1,18 @@
 # coding: utf-8
 
 from time import time
-import logging
-from logging.handlers import RotatingFileHandler
+from logging import getLogger as logging_getLogger, WARNING, Handler as LoggingHandler
 from contextlib import asynccontextmanager
 import typing as t
 from datetime import timedelta, datetime, timezone
 import asyncio
-import uvicorn
+from contextvars import ContextVar
+from sys import stderr
+from traceback import format_exc
+from uuid import uuid4 as uuid
 
+from uvicorn import run
+from loguru import logger as l
 from toml import load as load_toml
 from fastapi import FastAPI, APIRouter, Depends, HTTPException, Request, Body, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, RedirectResponse, Response
@@ -21,42 +25,71 @@ from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from sse_starlette import EventSourceResponse, ServerSentEvent
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html, get_swagger_ui_oauth2_redirect_html
+from fastapi.openapi.utils import get_openapi
 
 from config import config as c
-import utils as u
 import errors as e
 import models as m
+import utils as u
+from utils import cnen as ce
 
 # region init
 
+reqid: ContextVar[str] = ContextVar('sleepy_reqid', default='not-in-request')
+
 # init logger
-loglvl = getattr(logging, c.log.level.upper(), logging.INFO)
-l = logging.getLogger('uvicorn')  # get logger
-logging.basicConfig(level=loglvl)  # log level
-l.level = loglvl  # set logger level
-root_logger = logging.getLogger()  # get root logger
-root_logger.handlers.clear()  # clear default handlers
-stream_handler = logging.StreamHandler()  # get stream handler
-stream_handler.setFormatter(u.CustomFormatter())  # set stream formatter
-# set file handler
+l.remove()
+
+# 定义日志格式，包含 reqid
+
+
+def log_format(record):
+    reqid = record['extra'].get('reqid', 'fallback-logid')
+    return '<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level}</level> | <yellow>' + reqid + '</yellow> | <cyan>{name}</cyan>:<cyan>{line}</cyan> | <level>{message}</level>\n'
+
+
+l.add(
+    stderr,
+    level=c.log.level,
+    format=log_format,
+    backtrace=True,
+    diagnose=True
+)
+
 if c.log.file:
-    log_file_path = u.get_path(c.log.file)
-    if c.log.rotating:
-        file_handler = RotatingFileHandler(
-            log_file_path, encoding='utf-8', errors='ignore', maxBytes=int(c.log.rotating_size * 1024), backupCount=c.log.rotating_count
-        )
-    else:
-        file_handler = logging.FileHandler(log_file_path, encoding='utf-8', errors='ignore')
-    file_handler.setFormatter(u.CustomFormatter())
-    root_logger.addHandler(file_handler)
-logging.getLogger('watchfiles').level = logging.WARNING  # set watchfiles logger level
+    l.add(
+        c.log.file,
+        level=c.log.file_level or c.log.level,
+        format=log_format,
+        colorize=False,
+        rotation=c.log.rotation,
+        retention=c.log.retention,
+        enqueue=True
+    )
+
+l.configure(extra={'reqid': 'not-in-request'})
+
+
+class InterceptHandler(LoggingHandler):
+    def emit(self, record):
+        logger_opt = l.opt(depth=6, exception=record.exc_info)
+        logger_opt.log(record.levelname, record.getMessage())
+
+
+logging_getLogger('uvicorn').handlers.clear()
+logging_getLogger('uvicorn.access').handlers.clear()
+logging_getLogger('uvicorn.error').handlers.clear()
+logging_getLogger().handlers = [InterceptHandler()]
+logging_getLogger().setLevel(c.log.level)
+logging_getLogger('watchfiles').level = WARNING
 
 # load metadata
 
 with open(u.get_path('pyproject.toml'), 'r', encoding='utf-8') as f:
-    file: dict = load_toml(f).get('tool', {}).get('sleepy', {})
-    version: tuple[int, int, int] = file.get('version', (0, 0, 0))
-    version_str: str = file.get('version-str', 'unknown')
+    pyproject_file: dict = load_toml(f).get('tool', {}).get('sleepy', {})
+    version: tuple[int, int, int] = pyproject_file.get('version', (0, 0, 0))
+    version_str: str = pyproject_file.get('version-str', 'unknown')
+    version_full = f'{version_str} ({".".join(str(i) for i in version)})'
 
 # endregion init
 
@@ -96,22 +129,48 @@ async def lifespan(app: FastAPI):
     '''
     # startup log
     l.info(f'{"=" * 15} Application Startup {"=" * 15}')
-    l.info(f'Sleepy Backend version {version_str} ({".".join(str(i) for i in version)})')
+    l.info(f'Sleepy Backend version {version_full})')
     l.debug(f'Startup Config: {c}')
     if c.log.file:
-        l.info(f'Saving logs to {log_file_path}')
+        l.info(f'Saving logs to {c.log.file}')
     # create db
     create_db_and_tables()
     yield
-    l.info('Bye.')
 
 app = FastAPI(
-    title='Sleepy Backend - sleepy.wyf9.top 将自动重定向到此 | sleepy.wyf9.top will auto redirect to here',
+    title='Sleepy Backend',
     version=f'{version_str} ({".".join(str(i) for i in version)})',
     lifespan=lifespan,
     docs_url=None,
-    # redoc_url=None
+    redoc_url=None
 )
+
+
+@app.middleware('http')
+async def log_requests(request: Request, call_next: t.Callable):
+    request_id = str(uuid())
+    token = reqid.set(request_id)
+    with l.contextualize(reqid=request_id):
+        if request.client:
+            ip = f'[{request.client.host}]' if ':' in request.client.host else request.client.host
+            port = request.client.port
+        else:
+            ip = 'unknown-ip'
+            port = 0
+        l.info(f'Incoming request: {ip}:{port} - {request.method} {request.url.path}')
+        try:
+            p = u.perf_counter()
+            resp: Response = await call_next(request)
+            l.info(f'Outgoing response: {resp.status_code} ({p()}ms)')
+            return resp
+        except Exception as e:
+            l.error(f'Server error: {e} ({p()}ms)\n{format_exc()}')
+            resp = Response(f'Internal Server Error ({request_id})', 500)
+        finally:
+            resp.headers['X-Sleepy-Version'] = version_full
+            resp.headers['X-Sleepy-Request-Id'] = request_id
+            reqid.reset(token)
+            return resp
 
 # endregion app-context
 
@@ -122,10 +181,12 @@ app = FastAPI(
 async def custom_swagger_ui_html():
     return get_swagger_ui_html(
         openapi_url=app.openapi_url,  # type: ignore
-        title=app.title + " - Swagger UI",
+        title=f"{app.title} - Swagger UI",
         oauth2_redirect_url=app.swagger_ui_oauth2_redirect_url,
-        swagger_js_url="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.27.1/swagger-ui-bundle.js",
-        swagger_css_url="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.27.1/swagger-ui.css",
+        # or https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.27.1/swagger-ui-bundle.js
+        swagger_js_url="https://s4.zstatic.net/ajax/libs/swagger-ui/5.27.1/swagger-ui-bundle.js",
+        # or https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.27.1/swagger-ui.css
+        swagger_css_url="https://s4.zstatic.net/ajax/libs/swagger-ui/5.27.1/swagger-ui.css",
         swagger_favicon_url="https://ghsrc.wyf9.top/icons/sleepy_icon_nobg.png",
     )
 
@@ -134,16 +195,58 @@ async def custom_swagger_ui_html():
 async def swagger_ui_redirect():
     return get_swagger_ui_oauth2_redirect_html()
 
-# 暂时用不到
-# u need? pls wait for https://github.com/cdnjs/packages/issues/2049
-# or use SLOW jsdelivr (at least it's slow for me)
-# @app.get("/redoc", include_in_schema=False)
-# async def redoc_html():
-#     return get_redoc_html(
-#         openapi_url=app.openapi_url,  # type: ignore
-#         title=app.title + " - ReDoc",
-#         redoc_js_url="https://unpkg.com/redoc@2/bundles/redoc.standalone.js",
-#     )
+
+@app.get("/redoc", include_in_schema=False)
+async def redoc_html():
+    return get_redoc_html(
+        openapi_url=app.openapi_url or '/openapi.json',
+        title=f'{app.title} - ReDoc',
+        # or https://unpkg.com/redoc@2/bundles/redoc.standalone.jsstandalone.js
+        redoc_js_url="https://cdn.jsdmirror.com/npm/redoc@2/bundles/redoc.standalone.js",
+        redoc_favicon_url="https://ghsrc.wyf9.top/icons/sleepy_icon_nobg.png"
+    )
+
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+
+    for path in openapi_schema.get('paths', {}).values():
+        for operation in path.values():
+            if 'responses' not in operation:
+                operation['responses'] = {}
+
+            for status_code, response in operation['responses'].items():
+                if isinstance(response, str):
+                    operation['responses'][status_code] = {'description': response}
+
+                if 'headers' not in operation['responses'][status_code]:
+                    operation['responses'][status_code]['headers'] = {}
+
+                operation['responses'][status_code]['headers'].setdefault(
+                    'X-ImgAPI-Version', {
+                        'description': ce('Sleepy 版本', 'Sleepy version'),
+                        'schema': {'type': 'string'}
+                    }
+                )
+                operation['responses'][status_code]['headers'].setdefault(
+                    'X-ImgAPI-Request-Id', {
+                        'description': ce('Sleepy 请求 ID', 'Sleepy Request ID'),
+                        'schema': {'type': 'string'}
+                    }
+                )
+
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
+app.openapi = custom_openapi
 
 # endregion custom-docs
 
@@ -710,6 +813,9 @@ app.include_router(user_router)
 app.include_router(status_router)
 
 if __name__ == '__main__':
-    uvicorn.run(app, host=c.host, port=c.port)
+    l.info(f'Starting server: {f"[{c.host}]" if ":" in c.host else c.host}:{c.port}')  # with {c.workers} workers')
+    run('main:app', host=c.host, port=c.port)  # , workers=c.workers)
+    print()
+    l.info('Bye.')
 
 # endregion main

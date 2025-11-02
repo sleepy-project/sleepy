@@ -8,6 +8,7 @@ config.json
 .env
 
 # Log / Data
+logs/
 *.log
 *.log.*
 *.db
@@ -17,9 +18,6 @@ config.json
 *.local.*
 .venv/
 .venv_legacy/
-
-# Legacy content
-old/*
 
 # Others
 .vscode/launch.json

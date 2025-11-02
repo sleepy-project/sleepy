@@ -1,6 +1,5 @@
 {
     "files.autoSave": "onFocusChange",
-    "Codegeex.RepoIndex": true,
     "autopep8.args": [
         "--ignore",
         "E402,E501"

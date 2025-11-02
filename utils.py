@@ -2,61 +2,21 @@
 
 import os
 from pathlib import Path
-from datetime import datetime
 import time
 from typing import Any
 
-from logging import Formatter
 
-
-class CustomFormatter(Formatter):
+def __replace_code_tags(text: str) -> str:
     '''
-    自定义的 logging formatter
+    markdown -> html
     '''
-    # symbols = {
-    #     'DEBUG': '⚙️ ',
-    #     'INFO': 'ℹ️ ',
-    #     'WARNING': '⚠️ ',
-    #     'ERROR': '❌',
-    #     'CRITICAL': '💥'
-    # }
-    replaces = {
-        'DEBUG': f'[DEBUG]',
-        'INFO': f'[INFO] ',
-        'WARNING': f'[WARN] ',
-        'ERROR': f'[ERROR]',
-        'CRITICAL': f'[CRIT] '
-    }
-    # replaces_colorful = {
-    #     'DEBUG': f'{Fore.BLUE}[DEBUG]{Style.RESET_ALL}',
-    #     'INFO': f'{Fore.GREEN}[INFO]{Style.RESET_ALL} ',
-    #     'WARNING': f'{Fore.YELLOW}[WARN]{Style.RESET_ALL} ',
-    #     'ERROR': f'{Fore.RED}[ERROR]{Style.RESET_ALL}',
-    #     'CRITICAL': f'{Fore.MAGENTA}[CRIT]{Style.RESET_ALL} '
-    # }
-    # default_symbol = '📢'
-    # colorful: bool
+    while "`" in text:
+        text = text.replace("`", "<code>", 1).replace("`", "</code>", 1)
+    return text
 
-    # def __init__(self, colorful: bool = True):
-    # super().__init__()
-    # if colorful:
-    #     self.replaces = self.replaces_colorful
-    # else:
-    #     self.replaces = self.replaces_nocolor
-    #     self.symbols = {}
-    #     self.default_symbol = ''
 
-    def format(self, record):
-        timestamp = datetime.now().strftime('[%Y-%m-%d %H:%M:%S]')  # 格式化时间
-        # symbol = f' {self.symbols.get(record.levelname, self.default_symbol)}'  # 表情符号
-        level = self.replaces.get(record.levelname, f'[{record.levelname}]')  # 日志等级
-        file = os.path.relpath(record.pathname)  # 源文件名
-        line = record.lineno  # 文件行号
-
-        message = super().format(record)  # 日志内容
-        # formatted_message = f"{timestamp}{symbol} {level} | {file}:{line} | {message}"
-        formatted_message = f"{timestamp} {level} | {file}:{line} | {message}"
-        return formatted_message
+def cnen(cn: str, en: str):
+    return f'{__replace_code_tags(cn)}<br/><i>{__replace_code_tags(en)}</i>'
 
 
 def current_dir() -> str:
@@ -94,7 +54,7 @@ def perf_counter():
     获取一个性能计数器, 执行返回函数来结束计时, 并返回保留两位小数的毫秒值
     '''
     start = time.perf_counter()
-    return lambda: round((time.perf_counter() - start)*1000, 2)
+    return lambda: round((time.perf_counter() - start) * 1000, 2)
 
 
 def process_env_split(keys: list[str], value: Any) -> dict:

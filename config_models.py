@@ -1,6 +1,6 @@
 # coding: utf-8
 
-from pydantic import BaseModel
+from pydantic import BaseModel, PositiveInt
 import typing as t
 
 # region user-config
@@ -21,25 +21,30 @@ class _LoggingConfigModel(BaseModel):
     - CRITICAL
     '''
 
-    file: str | None = 'running.log'
+    file: str | None = 'logs/{time:YYYY-MM-DD}.log'
     '''
-    保存日志文件目录 (留空禁用) \n
-    如: `running.log`
-    '''
-
-    rotating: bool = True
-    '''
-    是否启用日志轮转
+    日志文件保存格式 (for Loguru)
+    - 设置为 None 以禁用
     '''
 
-    rotating_size: float = 1024
+    file_level: t.Literal['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'] | None = 'INFO'
     '''
-    日志轮转大小 (单位: KB)
+    单独设置日志文件中的日志等级, 如设置为 None 则使用 level 设置
+    - DEBUG
+    - INFO
+    - WARNING
+    - ERROR
+    - CRITICAL
     '''
 
-    rotating_count: int = 5
+    rotation: str | int = '1 days'
     '''
-    日志轮转数量
+    配置 Loguru 的 rotation (轮转周期) 设置
+    '''
+
+    retention: str | int = '3 days'
+    '''
+    配置 Loguru 的 retention (轮转保留) 设置
     '''
 
 
@@ -48,9 +53,20 @@ class ConfigModel(BaseModel):
     配置 Model
     '''
 
-    host: str = '::'
+    host: str = '0.0.0.0'
+    '''
+    服务监听地址 (仅在直接启动 main.py 时有效)
+    '''
 
-    port: int = 9010
+    port: PositiveInt = 9010
+    '''
+    服务监听端口 (仅在直接启动 main.py 时有效)
+    '''
+
+    # workers: PositiveInt = 2
+    # '''
+    # 服务 Worker 数 (仅在直接启动 main.py 时有效)
+    # '''
 
     log: _LoggingConfigModel = _LoggingConfigModel()
 
