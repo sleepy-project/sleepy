@@ -106,7 +106,7 @@ async def lifespan(app: FastAPI):
     l.info('Bye.')
 
 app = FastAPI(
-    title='Sleepy Backend',
+    title='Sleepy Backend - sleepy.wyf9.top 将自动重定向到此 | sleepy.wyf9.top will auto redirect to here',
     version=f'{version_str} ({".".join(str(i) for i in version)})',
     lifespan=lifespan,
     docs_url=None,
