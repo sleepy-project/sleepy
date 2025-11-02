@@ -52,7 +52,7 @@ class APIUnsuccessful(Exception):
     http code 对应表, 由 DeepSeek 扩充
     '''
 
-    def __init__(self, code: int = 500, detail: str | None = None, headers: dict = {}):
+    def __init__(self, code: int = 500, detail: str | None = None, headers: dict[str, str] = {}):
         '''
         创建 APIUnsuccessful 异常
 

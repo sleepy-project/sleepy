@@ -1,6 +1,7 @@
 # coding: utf-8
 
 from time import time
+from datetime import datetime, timezone, timedelta
 from logging import getLogger as logging_getLogger, WARNING, Handler as LoggingHandler
 from contextlib import asynccontextmanager
 import typing as t
@@ -8,12 +9,14 @@ import asyncio
 from contextvars import ContextVar
 from sys import stderr
 from traceback import format_exc
-from uuid import uuid4 as uuid
+from uuid import uuid4 as uuid, UUID
+from hashlib import sha256
+from secrets import compare_digest
 
 from uvicorn import run
 from loguru import logger as l
 from toml import load as load_toml
-from fastapi import FastAPI, APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect, status as hc
+from fastapi import FastAPI, APIRouter, Depends, HTTPException, Request, Header, WebSocket, WebSocketDisconnect, status as hc
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from sqlmodel import create_engine, SQLModel, Session, select
 from pydantic import BaseModel
@@ -21,6 +24,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from sse_starlette import EventSourceResponse, ServerSentEvent
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html, get_swagger_ui_oauth2_redirect_html
 from fastapi.openapi.utils import get_openapi
+import bcrypt
 
 from config import config as c
 import errors as e
@@ -35,8 +39,6 @@ reqid: ContextVar[str] = ContextVar('sleepy_reqid', default='not-in-request')
 # init logger
 l.remove()
 
-# 定义日志格式，包含 reqid
-
 
 def log_format(record):
     reqid = record['extra'].get('reqid', 'fallback-logid')
@@ -50,7 +52,6 @@ l.add(
     backtrace=True,
     diagnose=True
 )
-
 if c.log.file:
     l.add(
         c.log.file,
@@ -61,7 +62,6 @@ if c.log.file:
         retention=c.log.retention,
         enqueue=True
     )
-
 l.configure(extra={'reqid': 'not-in-request'})
 
 
@@ -268,6 +268,112 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     }, headers=exc.headers)
 
 # endregion error-handlers
+
+# region auth
+
+auth_router = APIRouter(
+    prefix='/api',
+    tags=['auth']
+)
+
+
+def gen_token(sess: SessionDep, type: t.Literal['user', 'device', 'api']):
+    token = str(uuid())
+    expire = (datetime.now(timezone.utc) + timedelta(days=c.user_token_expires_days)).timestamp()
+    sess.add(m.TokenData(
+        type=type,
+        token=token,
+        expire=expire
+    ))
+    l.info(f'Generated new {type} token {sha256(token.encode('utf-8'), usedforsecurity=False).hexdigest()} (sha256), expires: {expire}')
+    return token
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+    hashed: bool = True  # 是否已经过 sha256 hash
+
+
+class LoginResponse(BaseModel):
+    token: UUID
+    new_register: bool = False
+
+
+@auth_router.post('/user', name='Register (if no user exists) and login', response_model=LoginResponse)
+async def login(sess: SessionDep, req: LoginRequest):
+    auth = sess.exec(select(m.UserData)).first()
+    if not req.hashed:
+        req.password = sha256(req.password.encode('utf-8', errors='xmlcharrefreplace')).hexdigest()
+    if auth:
+        # already exists
+        if compare_digest(req.username, auth.username):
+            if bcrypt.checkpw(req.password.encode('utf-8', errors='xmlcharrefreplace'), auth.password):
+                return {
+                    'token': gen_token(sess, 'user'),
+                    'new_register': False
+                }
+            else:
+                l.warning(f'Password "{req.password}" (sha256) didn\'t match!')
+        else:
+            l.warning(f'Username "{req.username}" didn\'t match!')
+    else:
+        # new register
+        salt = bcrypt.gensalt()
+        hashed = bcrypt.hashpw(req.password.encode('utf-8', errors='xmlcharrefreplace'), salt)
+        sess.add(m.UserData(
+            username=req.username,
+            password=hashed,
+            salt=salt
+        ))
+        sess.commit()
+        return {
+            'token': gen_token(sess, 'user'),
+            'new_register': True
+        }
+
+    raise e.APIUnsuccessful(hc.HTTP_401_UNAUTHORIZED, 'Incorrent username or password')
+
+
+class TokenDep:
+    def __init__(self, *allowed_token_types: list[t.Literal['user', 'device', 'api']], throw: bool = True):
+        self.allowed_token_types = allowed_token_types
+        self.throw = throw
+
+    def __call__(
+        self,
+        sess: SessionDep,
+        authorization: t.Annotated[str | None, Header()] = None,
+        x_sleepy_token: t.Annotated[str | None, Header()] = None,
+    ) -> m.TokenData | None:
+        if x_sleepy_token:
+            token = x_sleepy_token[0]
+            l.debug('Got token from X-Sleepy-Token')
+        elif authorization and authorization[0].startswith('Bearer '):
+            token = authorization[0][7:]
+            l.debug('Got token from Authorization')
+        else:
+            l.debug('Got no token!')
+
+        info: m.TokenData | None = sess.get(m.TokenData, token)
+        if info:
+            if info.type in self.allowed_token_types:
+                return info
+            else:
+                l.debug(f'Token type {info.type} isn\'t in {self.allowed_token_types}!')
+        else:
+            l.debug(f'Token doesn\'t exist!')
+
+        if self.throw:
+            raise e.APIUnsuccessful(hc.HTTP_401_UNAUTHORIZED, 'Invaild token')
+        else:
+            return None
+
+
+@app.get('/user1')
+def user1(tk: m.TokenData = Depends(TokenDep(['user', 'device', 'api'], throw=True))):
+    return {'token': tk}
+# endregion auth
 
 # region routes
 
@@ -613,6 +719,7 @@ async def clear_devices(sess: SessionDep):
 
 # region main
 
+app.include_router(auth_router)
 app.include_router(devices_router)
 app.include_router(status_router)
 
