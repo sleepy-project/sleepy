@@ -4,7 +4,6 @@ from time import time
 from logging import getLogger as logging_getLogger, WARNING, Handler as LoggingHandler
 from contextlib import asynccontextmanager
 import typing as t
-from datetime import timedelta, datetime, timezone
 import asyncio
 from contextvars import ContextVar
 from sys import stderr
@@ -14,12 +13,8 @@ from uuid import uuid4 as uuid
 from uvicorn import run
 from loguru import logger as l
 from toml import load as load_toml
-from fastapi import FastAPI, APIRouter, Depends, HTTPException, Request, Body, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect, status as hc
 from fastapi.responses import JSONResponse, RedirectResponse, Response
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-import jwt
-from jwt.exceptions import InvalidTokenError
-from passlib.context import CryptContext
 from sqlmodel import create_engine, SQLModel, Session, select
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -250,87 +245,8 @@ app.openapi = custom_openapi
 
 # endregion custom-docs
 
-# region auth
-
-pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
-oauth2 = OAuth2PasswordBearer(tokenUrl='api/user/')
-algorithm: str = 'HS256'
-access_token_expires_minutes: int = 30
-
-
-def pwd_verify(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
-
-
-def pwd_hash(password):
-    return pwd_context.hash(password)
-
-
-def auth_user(sess: SessionDep, username: str, password: str):
-    auth = sess.exec(select(m.AuthData)).first()
-    if not auth:
-        raise e.APIUnsuccessful(404, 'No authentication data found')
-    elif auth.username != username:
-        return False
-    elif not pwd_verify(password, auth.hashed_password):
-        return False
-    else:
-        return True
-
-
-def create_access_token(sess: SessionDep, data: dict, expires_delta: timedelta | None = None):
-    auth = sess.exec(select(m.AuthData)).first()
-    if not auth:
-        raise e.APIUnsuccessful(404, 'No authentication data found')
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
-    else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
-    to_encode.update({'exp': expire})
-    encoded_jwt = jwt.encode(to_encode, auth.secret_key, algorithm=algorithm)
-    return encoded_jwt
-
-
-credentials_exception = e.APIUnsuccessful(
-    code=401,
-    detail='Could not validate credentials',
-    headers={'WWW-Authenticate': 'Bearer'},
-)
-
-
-async def current_user(sess: SessionDep, token: t.Annotated[str, Depends(oauth2)]):
-    if not token:
-        raise credentials_exception
-
-    auth = sess.exec(select(m.AuthData)).first()
-    if not auth:
-        raise e.APIUnsuccessful(401, 'No authentication data found', headers={'WWW-Authenticate': 'Bearer'})
-
-    try:
-        payload = jwt.decode(token, auth.secret_key, algorithms=[algorithm])
-        username = payload.get('sub')
-        exp = payload.get('exp')
-        if username != auth.username:
-            raise credentials_exception
-        if exp and datetime.fromtimestamp(exp, timezone.utc) < datetime.now(timezone.utc):
-            raise credentials_exception
-    except InvalidTokenError:
-        raise credentials_exception
-    return auth.username
-
-
-class LoginRequest(BaseModel):
-    username: str
-    password: str
-
-
-class LoginResponse(BaseModel):
-    access_token: str
-    token_type: str = 'bearer'
-
-
 # region error-handlers
+
 
 @app.exception_handler(e.APIUnsuccessful)
 async def api_unsuccessful_exception_handler(request: Request, exc: e.APIUnsuccessful):
@@ -392,15 +308,15 @@ async def query(sess: SessionDep):
             'last_updated': meta.last_updated
         }
     else:
-        raise e.APIUnsuccessful(500, 'Cannot read metadata')
+        raise e.APIUnsuccessful(hc.HTTP_500_INTERNAL_SERVER_ERROR, 'Cannot read metadata')
 
 
-@app.get('/api/health', status_code=204)
+@app.get('/api/health', status_code=hc.HTTP_204_NO_CONTENT)
 async def health():
     return
 
 
-@app.get('/favicon.ico', status_code=200, include_in_schema=False)
+@app.get('/favicon.ico', status_code=hc.HTTP_200_OK, include_in_schema=False)
 async def favicon():
     return RedirectResponse('https://ghsrc.wyf9.top/icons/sleepy_icon_nobg.png', 302)
 
@@ -420,7 +336,7 @@ class ConnManager:
             await self.evt_broadcast('online-changed', {'online': len(self._events)})
             return queue
         except asyncio.QueueShutDown:
-            raise e.APIUnsuccessful(500, 'Cannot connect to event stream')
+            raise e.APIUnsuccessful(hc.HTTP_500_INTERNAL_SERVER_ERROR, 'Cannot connect to event stream')
 
     async def evt_disconnect(self, queue: asyncio.Queue):
         try:
@@ -516,7 +432,7 @@ async def events(sess: SessionDep):
 
 
 @app.websocket('/api/devices/{device_id}')
-async def websocket_device(ws: WebSocket, user: t.Annotated[str, Depends(current_user)]):
+async def websocket_device(ws: WebSocket):
     try:
         await ws.accept()
         while True:
@@ -558,18 +474,18 @@ async def get_status(sess: SessionDep):
             'status': meta.status
         }
     else:
-        raise e.APIUnsuccessful(500, 'Cannot read metadata')
+        raise e.APIUnsuccessful(hc.HTTP_500_INTERNAL_SERVER_ERROR, 'Cannot read metadata')
 
 
 class SetStatusRequest(BaseModel):
     status: int
 
 
-@status_router.post('/', status_code=204)
-async def set_status(sess: SessionDep, req: SetStatusRequest, user: t.Annotated[str, Depends(current_user)]):
+@status_router.post('/', status_code=hc.HTTP_204_NO_CONTENT)
+async def set_status(sess: SessionDep, req: SetStatusRequest):
     meta = sess.exec(select(m.Metadata)).first()
     if not meta:
-        raise e.APIUnsuccessful(500, 'Cannot update metadata')
+        raise e.APIUnsuccessful(hc.HTTP_500_INTERNAL_SERVER_ERROR, 'Cannot update metadata')
     elif meta.status == req.status:
         return
     else:
@@ -595,7 +511,7 @@ async def get_device(sess: SessionDep, device_id: str):
     if device:
         return device
     else:
-        raise e.APIUnsuccessful(404, 'Device not found')
+        raise e.APIUnsuccessful(hc.HTTP_404_NOT_FOUND, 'Device not found')
 
 
 class UpdateDeviceRequest(BaseModel):
@@ -605,8 +521,8 @@ class UpdateDeviceRequest(BaseModel):
     fields: dict | None = None
 
 
-@devices_router.put('/{device_id}', status_code=204, name='Create or update a device')
-async def update_device(sess: SessionDep, device_id: str, req: UpdateDeviceRequest, user: t.Annotated[str, Depends(current_user)]):
+@devices_router.put('/{device_id}', status_code=hc.HTTP_204_NO_CONTENT, name='Create or update a device')
+async def update_device(sess: SessionDep, device_id: str, req: UpdateDeviceRequest):
     device = sess.get(m.DeviceData, device_id)
     if device:
         updated = {}
@@ -634,7 +550,7 @@ async def update_device(sess: SessionDep, device_id: str, req: UpdateDeviceReque
     else:
         # not exist -> create
         if not req.name:
-            raise e.APIUnsuccessful(400, 'Device name is required')
+            raise e.APIUnsuccessful(hc.HTTP_400_BAD_REQUEST, 'Device name is required')
         status = req.status or ''
         using = req.using if req.using is not None else False
         fields = req.fields or {}
@@ -651,11 +567,11 @@ async def update_device(sess: SessionDep, device_id: str, req: UpdateDeviceReque
             meta.last_updated = time()
         sess.commit()
         await manager.evt_broadcast('device_added', {'id': device_id, 'name': req.name, 'status': status, 'using': using, 'fields': fields})
-        return Response(status_code=201)
+        return Response(status_code=hc.HTTP_201_CREATED)
 
 
-@devices_router.delete('/{device_id}', status_code=204)
-async def delete_device(sess: SessionDep, device_id: str, user: t.Annotated[str, Depends(current_user)]):
+@devices_router.delete('/{device_id}', status_code=hc.HTTP_204_NO_CONTENT)
+async def delete_device(sess: SessionDep, device_id: str):
     device = sess.get(m.DeviceData, device_id)
     if device:
         sess.delete(device)
@@ -679,8 +595,8 @@ async def get_devices(sess: SessionDep):
     }
 
 
-@devices_router.delete('/', status_code=204)
-async def clear_devices(sess: SessionDep, user: t.Annotated[str, Depends(current_user)]):
+@devices_router.delete('/', status_code=hc.HTTP_204_NO_CONTENT)
+async def clear_devices(sess: SessionDep):
     devices = sess.exec(select(m.DeviceData)).all()
     for d in devices:
         sess.delete(d)
@@ -693,123 +609,11 @@ async def clear_devices(sess: SessionDep, user: t.Annotated[str, Depends(current
 
 # endregion routes-device
 
-# region routes-user
-
-user_router = APIRouter(
-    prefix='/api/user',
-    tags=['user']
-)
-
-
-@user_router.post('/', response_model=LoginResponse, name='Register (if no user exists) and login')
-async def login(
-    sess: SessionDep,
-    form_data: t.Annotated[OAuth2PasswordRequestForm, Depends()] = None,  # type: ignore
-    json_data: t.Annotated[LoginRequest, Body()] = None  # type: ignore
-):
-    if form_data:
-        username = form_data.username
-        password = form_data.password
-    elif json_data:
-        username = json_data.username
-        password = json_data.password
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail='Either form data or JSON data is required'
-        )
-
-    user = auth_user(sess, username=username, password=password)
-    if user:
-        new_register = False
-    else:
-        # check if user exists or not
-        auth = sess.exec(select(m.AuthData)).first()
-        if auth:
-            raise HTTPException(
-                status_code=401,
-                detail='Incorrect username or password'
-            )
-        else:
-            # register & login
-            new_register = True
-            sess.add(m.AuthData(
-                username=username,
-                hashed_password=pwd_hash(password)
-            ))
-            sess.commit()
-            user = auth_user(sess, username=username, password=password)
-
-    access_token_expires = timedelta(minutes=access_token_expires_minutes)
-    access_token = create_access_token(
-        sess, data={'sub': username}, expires_delta=access_token_expires
-    )
-
-    return JSONResponse({
-        'access_token': access_token,
-        'token_type': 'bearer',
-        'new_register': new_register
-    }, 201 if new_register else 200)
-
-
-class UpdateUserRequest(BaseModel):
-    old_username: str | None = None
-    old_password: str | None = None
-    new_username: str
-    new_password: str
-
-
-@user_router.put('/', status_code=204, name='Create or update user')
-async def update_user(sess: SessionDep, req: UpdateUserRequest):
-    auth = sess.exec(select(m.AuthData)).first()
-    if not auth:
-        sess.add(m.AuthData(
-            username=req.new_username,
-            hashed_password=pwd_hash(req.new_password)
-        ))
-        sess.commit()
-        return Response(status_code=201)
-    elif auth.username != req.old_username:
-        raise e.APIUnsuccessful(401, 'Incorrect username or password')
-    elif not pwd_verify(req.old_password, auth.hashed_password):
-        raise e.APIUnsuccessful(401, 'Incorrect username or password')
-    else:
-        auth.username = req.new_username
-        auth.hashed_password = pwd_hash(req.new_password)
-        sess.commit()
-        return
-
-
-class WhoamiResponse(BaseModel):
-    username: str
-
-
-@user_router.get('/', response_model=WhoamiResponse)
-async def whoami(user: t.Annotated[str, Depends(current_user)] = None):  # type: ignore
-    return {
-        'username': user
-    }
-
-
-class GetRegisteredResponse(BaseModel):
-    registered: bool
-
-
-@user_router.get('/registered')
-async def get_registered(sess: SessionDep):
-    auth = sess.exec(select(m.AuthData)).first()
-    return {
-        'registered': bool(auth)
-    }
-
-# endregion auth
-
 # endregion routes
 
 # region main
 
 app.include_router(devices_router)
-app.include_router(user_router)
 app.include_router(status_router)
 
 if __name__ == '__main__':

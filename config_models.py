@@ -83,9 +83,23 @@ class ConfigModel(BaseModel):
     Event-Stream Ping 间隔 (单位: 秒, 设置为 0 禁用)
     '''
 
+    access_token_expires_days: PositiveInt = 7
+    '''
+    Access Token (用户登录管理面板) 过期时间 (天)
+    '''
+
+    device_token_expires_days: PositiveInt = 365
+    '''
+    默认 Device Token (设备更新状态密钥) 过期时间 (天)
+    '''
+
+    api_token_expires_days: PositiveInt = 180
+    '''
+    默认 API Token 过期时间 (天)
+    '''
+
+
 # endregion user-config
-
-
 env_vaildate_json_keys = [
     'status_status_list',
     'metrics_allow_list',

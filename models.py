@@ -2,20 +2,9 @@
 
 from time import time
 import typing as t
-from secrets import token_hex
 
 from sqlalchemy import JSON
 from sqlmodel import SQLModel, Field
-
-
-class AuthData(SQLModel, table=True):
-    '''
-    认证数据
-    '''
-    id: int = Field(default=0, primary_key=True, index=True)
-    secret_key: str = Field(default=token_hex(32))
-    username: str = Field(min_length=1)
-    hashed_password: str = Field()
 
 
 class Metadata(SQLModel, table=True):
