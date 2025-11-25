@@ -11,7 +11,6 @@ from sys import stderr
 from traceback import format_exc
 from uuid import uuid4 as uuid, UUID
 from hashlib import sha256
-from secrets import compare_digest
 
 from uvicorn import run
 from loguru import logger as l
@@ -19,7 +18,7 @@ from toml import load as load_toml
 from fastapi import FastAPI, APIRouter, Depends, HTTPException, Request, Header, WebSocket, WebSocketDisconnect, status as hc
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from sqlmodel import create_engine, SQLModel, Session, select
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from sse_starlette import EventSourceResponse, ServerSentEvent
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html, get_swagger_ui_oauth2_redirect_html
@@ -212,6 +211,18 @@ def custom_openapi():
         routes=app.routes,
     )
 
+    components = openapi_schema.setdefault('components', {})
+    security_schemes = components.setdefault('securitySchemes', {})
+    security_schemes.setdefault('SleepyToken', {
+        'type': 'apiKey',
+        'in': 'header',
+        'name': 'X-Sleepy-Token',
+        'description': ce('在 `X-Sleepy-Token` 中提供 token', 'Header for sending the raw token')
+    })
+    openapi_schema.setdefault('security', [
+        {'SleepyToken': []}
+    ])
+
     for path in openapi_schema.get('paths', {}).values():
         for operation in path.values():
             if 'responses' not in operation:
@@ -225,13 +236,13 @@ def custom_openapi():
                     operation['responses'][status_code]['headers'] = {}
 
                 operation['responses'][status_code]['headers'].setdefault(
-                    'X-ImgAPI-Version', {
+                    'X-Sleepy-Version', {
                         'description': ce('Sleepy 版本', 'Sleepy version'),
                         'schema': {'type': 'string'}
                     }
                 )
                 operation['responses'][status_code]['headers'].setdefault(
-                    'X-ImgAPI-Request-Id', {
+                    'X-Sleepy-Request-Id', {
                         'description': ce('Sleepy 请求 ID', 'Sleepy Request ID'),
                         'schema': {'type': 'string'}
                     }
@@ -271,73 +282,264 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 # region auth
 
+AUTH_ROOT_USERNAME = '__sleepy__'
+AUTH_ACCESS_PREFIX = 'auth_access'
+AUTH_REFRESH_PREFIX = 'auth_refresh'
+AUTH_ALLOWED_TYPES: tuple[str, ...] = ('web', 'dev', 'device')
+DEV_LOGIN_ALLOWED = bool(getattr(c, 'dev', False) or getattr(c, 'env', {}).get('dev', False))
+
 auth_router = APIRouter(
-    prefix='/api',
+    prefix='/api/auth',
     tags=['auth']
 )
 
 
-def gen_token(sess: SessionDep, type: t.Literal['user', 'device', 'api']):
-    token = str(uuid())
-    expire = (datetime.now(timezone.utc) + timedelta(days=c.user_token_expires_days)).timestamp()
-    sess.add(m.TokenData(
-        type=type,
-        token=token,
-        expire=expire
-    ))
-    l.info(f'Generated new {type} token {sha256(token.encode('utf-8'), usedforsecurity=False).hexdigest()} (sha256), expires: {expire}')
-    return token
-
-
-class LoginRequest(BaseModel):
-    username: str
+class InitRequest(BaseModel):
     password: str
-    hashed: bool = True  # 是否已经过 sha256 hash
+    hashed: bool = True
 
 
-class LoginResponse(BaseModel):
+class InitResponse(BaseModel):
+    initialized: bool = True
+
+
+class AuthLoginRequest(BaseModel):
+    password: str
+    type: t.Literal['web', 'dev', 'device'] = 'web'
+    device_uid: str | None = None
+    hashed: bool = True
+
+    @model_validator(mode='after')
+    def _ensure_device_requires_uid(self):
+        if self.type == 'device' and not self.device_uid:
+            raise ValueError('device_uid is required when type is "device"')
+        if self.type == 'dev' and not DEV_LOGIN_ALLOWED:
+            raise ValueError('Dev login disabled in this environment')
+        return self
+
+
+class AuthRefreshRequest(BaseModel):
     token: UUID
-    new_register: bool = False
+    refresh_token: UUID
 
 
-@auth_router.post('/user', name='Register (if no user exists) and login', response_model=LoginResponse)
-async def login(sess: SessionDep, req: LoginRequest):
-    auth = sess.exec(select(m.UserData)).first()
-    if not req.hashed:
-        req.password = sha256(req.password.encode('utf-8', errors='xmlcharrefreplace')).hexdigest()
-    if auth:
-        # already exists
-        if compare_digest(req.username, auth.username):
-            if bcrypt.checkpw(req.password.encode('utf-8', errors='xmlcharrefreplace'), auth.password):
-                return {
-                    'token': gen_token(sess, 'user'),
-                    'new_register': False
-                }
-            else:
-                l.warning(f'Password "{req.password}" (sha256) didn\'t match!')
-        else:
-            l.warning(f'Username "{req.username}" didn\'t match!')
-    else:
-        # new register
-        salt = bcrypt.gensalt()
-        hashed = bcrypt.hashpw(req.password.encode('utf-8', errors='xmlcharrefreplace'), salt)
-        sess.add(m.UserData(
-            username=req.username,
-            password=hashed,
-            salt=salt
-        ))
+class AuthTokensResponse(BaseModel):
+    token: UUID
+    refresh_token: UUID
+    expires_at: float | None = None
+    type: str | None = None
+
+
+def _hash_sha256(value: str) -> str:
+    return sha256(value.encode('utf-8', errors='xmlcharrefreplace')).hexdigest()
+
+
+def _normalize_password(password: str, hashed: bool) -> str:
+    return password if hashed else _hash_sha256(password)
+
+
+def _get_auth_secret(sess: Session) -> m.AuthSecret | None:
+    return sess.exec(select(m.AuthSecret)).first()
+
+
+def _ensure_auth_initialized(sess: Session) -> m.AuthSecret:
+    secret = _get_auth_secret(sess)
+    if not secret:
+        raise e.APIUnsuccessful(hc.HTTP_403_FORBIDDEN, 'Auth not initialized')
+    return secret
+
+
+def _token_parts(token_type: str) -> tuple[str, str | None, str | None]:
+    parts = token_type.split(':') if token_type else []
+    if not parts:
+        return '', None, None
+    base = parts[0]
+    if len(parts) == 1:
+        return base, None, None
+    if len(parts) == 2:
+        return base, None, parts[1]
+    subtype = ':'.join(parts[1:-1]) or None
+    device_hash = parts[-1]
+    return base, subtype, device_hash
+
+
+def _base_token_type(token_type: str) -> str:
+    base, _, _ = _token_parts(token_type)
+    return base
+
+
+def _token_device_hash(token_type: str) -> str | None:
+    _, _, device_hash = _token_parts(token_type)
+    return device_hash
+
+
+def _token_login_type(token_type: str) -> str | None:
+    _, subtype, _ = _token_parts(token_type)
+    return subtype
+
+
+def _device_hash(device_uid: str) -> str:
+    return sha256(device_uid.encode('utf-8', errors='xmlcharrefreplace')).hexdigest()
+
+
+def _create_token(
+    sess: Session,
+    prefix: str,
+    device_hash: str,
+    expire_delta: timedelta | None,
+    *,
+    login_type: str | None = None
+):
+    token_value = str(uuid())
+    expire_ts: float | None = None
+    if expire_delta:
+        expire_ts = (datetime.now(timezone.utc) + expire_delta).timestamp()
+    fragments = [prefix]
+    if login_type:
+        fragments.append(login_type)
+    fragments.append(device_hash)
+    token_type = ':'.join(fragments)
+    sess.add(m.TokenData(
+        type=token_type,
+        token=token_value,
+        expire=expire_ts or 0.0
+    ))
+    l.info(f'Generated new {token_type} token {sha256(token_value.encode('utf-8'), usedforsecurity=False).hexdigest()} (sha256), expires: {expire_ts or 0.0}')
+    return token_value, expire_ts
+
+
+def _clear_device_tokens(sess: Session, device_hash: str):
+    def _tokens_with_prefix(prefix: str) -> list[m.TokenData]:
+        return sess.exec(select(m.TokenData).where(m.TokenData.type.like(f'{prefix}:%'))).all()
+
+    candidates = _tokens_with_prefix(AUTH_ACCESS_PREFIX) + _tokens_with_prefix(AUTH_REFRESH_PREFIX)
+    for tk in candidates:
+        if _token_device_hash(tk.type) == device_hash:
+            sess.delete(tk)
+
+
+def _issue_full_session(sess: Session, device_uid: str | None, login_type: str | None = None) -> AuthTokensResponse:
+    resolved_login_type = login_type or 'web'
+    if resolved_login_type == 'dev' and not DEV_LOGIN_ALLOWED:
+        raise e.APIUnsuccessful(hc.HTTP_403_FORBIDDEN, 'Dev token issuance disabled')
+    identifier = device_uid or resolved_login_type
+    device_hash = _device_hash(identifier)
+    _clear_device_tokens(sess, device_hash)
+    access_token, expires_at = _create_token(
+        sess,
+        AUTH_ACCESS_PREFIX,
+        device_hash,
+        timedelta(minutes=c.auth_access_token_expires_minutes),
+        login_type=resolved_login_type
+    )
+    refresh_token, _ = _create_token(
+        sess,
+        AUTH_REFRESH_PREFIX,
+        device_hash,
+        timedelta(days=c.auth_refresh_token_expires_days),
+        login_type=resolved_login_type
+    )
+    sess.commit()
+    return AuthTokensResponse(
+        token=UUID(access_token),
+        refresh_token=UUID(refresh_token),
+        expires_at=expires_at,
+        type=resolved_login_type
+    )
+
+
+def _issue_access_from_refresh(sess: Session, refresh_record: m.TokenData) -> AuthTokensResponse:
+    _, login_type, device_hash = _token_parts(refresh_record.type)
+    if not device_hash:
+        raise e.APIUnsuccessful(hc.HTTP_401_UNAUTHORIZED, 'Malformed refresh token')
+    access_token, expires_at = _create_token(
+        sess,
+        AUTH_ACCESS_PREFIX,
+        device_hash,
+        timedelta(minutes=c.auth_access_token_expires_minutes),
+        login_type=login_type
+    )
+    refresh_record.last_active = datetime.now(timezone.utc).timestamp()
+    sess.add(refresh_record)
+    sess.commit()
+    return AuthTokensResponse(
+        token=UUID(access_token),
+        refresh_token=UUID(refresh_record.token),
+        expires_at=expires_at,
+        type=login_type
+    )
+
+
+@app.post('/api/init', response_model=InitResponse, name='Initialize auth secret')
+async def init_auth(sess: SessionDep, req: InitRequest):
+    if _get_auth_secret(sess):
+        raise e.APIUnsuccessful(hc.HTTP_409_CONFLICT, 'Auth already initialized')
+    normalized = _normalize_password(req.password, req.hashed)
+    salt = bcrypt.gensalt()
+    hashed_password = bcrypt.hashpw(normalized.encode('utf-8', errors='xmlcharrefreplace'), salt)
+    sess.add(m.AuthSecret(
+        username=AUTH_ROOT_USERNAME,
+        password=hashed_password,
+        salt=salt
+    ))
+    sess.commit()
+    return {'initialized': True}
+
+
+@auth_router.post('/login', response_model=AuthTokensResponse, name='Login and issue auth tokens')
+async def auth_login(sess: SessionDep, req: AuthLoginRequest):
+    secret = _ensure_auth_initialized(sess)
+    normalized = _normalize_password(req.password, req.hashed)
+    if not bcrypt.checkpw(normalized.encode('utf-8', errors='xmlcharrefreplace'), secret.password):
+        l.warning('Auth password mismatch during login request')
+        raise e.APIUnsuccessful(hc.HTTP_401_UNAUTHORIZED, 'Incorrect password')
+    return _issue_full_session(sess, req.device_uid, req.type)
+
+
+@auth_router.post('/refresh', response_model=AuthTokensResponse, name='Refresh auth token')
+async def auth_refresh(sess: SessionDep, req: AuthRefreshRequest):
+    _ensure_auth_initialized(sess)
+    now_ts = datetime.now(timezone.utc).timestamp()
+    access_token = sess.get(m.TokenData, str(req.token))
+    refresh_token = sess.get(m.TokenData, str(req.refresh_token))
+
+    if not access_token or _base_token_type(access_token.type) != AUTH_ACCESS_PREFIX:
+        raise e.APIUnsuccessful(hc.HTTP_401_UNAUTHORIZED, 'Invalid token')
+    if not refresh_token or _base_token_type(refresh_token.type) != AUTH_REFRESH_PREFIX:
+        raise e.APIUnsuccessful(hc.HTTP_401_UNAUTHORIZED, 'Invalid refresh token')
+
+    refresh_hash = _token_device_hash(refresh_token.type)
+    access_hash = _token_device_hash(access_token.type)
+    if not refresh_hash or refresh_hash != access_hash:
+        raise e.APIUnsuccessful(hc.HTTP_401_UNAUTHORIZED, 'Token pair mismatch')
+
+    if refresh_token.expire and refresh_token.expire > 0 and refresh_token.expire < now_ts:
+        sess.delete(refresh_token)
         sess.commit()
-        return {
-            'token': gen_token(sess, 'user'),
-            'new_register': True
-        }
+        raise e.APIUnsuccessful(hc.HTTP_401_UNAUTHORIZED, 'Refresh token expired')
 
-    raise e.APIUnsuccessful(hc.HTTP_401_UNAUTHORIZED, 'Incorrent username or password')
+    if access_token.expire and access_token.expire > 0 and access_token.expire < now_ts:
+        sess.delete(access_token)
+        sess.commit()
+        raise e.APIUnsuccessful(hc.HTTP_401_UNAUTHORIZED, 'Token expired')
+
+    sess.delete(access_token)
+    return _issue_access_from_refresh(sess, refresh_token)
 
 
 class TokenDep:
-    def __init__(self, *allowed_token_types: list[t.Literal['user', 'device', 'api']], throw: bool = True):
-        self.allowed_token_types = allowed_token_types
+    def __init__(
+        self,
+        allowed_token_types: tuple[str, ...] | None = None,
+        *,
+        throw: bool = True,
+        allowed_login_types: tuple[str, ...] | None = None
+    ):
+        self.allowed_token_types = allowed_token_types or (AUTH_ACCESS_PREFIX,)
+        if allowed_login_types and not DEV_LOGIN_ALLOWED:
+            self.allowed_login_types = tuple(t for t in allowed_login_types if t != 'dev') or None
+        else:
+            self.allowed_login_types = allowed_login_types
         self.throw = throw
 
     def __call__(
@@ -346,33 +548,45 @@ class TokenDep:
         authorization: t.Annotated[str | None, Header()] = None,
         x_sleepy_token: t.Annotated[str | None, Header()] = None,
     ) -> m.TokenData | None:
+        token_value: str | None = None
         if x_sleepy_token:
-            token = x_sleepy_token[0]
+            token_value = x_sleepy_token
             l.debug('Got token from X-Sleepy-Token')
-        elif authorization and authorization[0].startswith('Bearer '):
-            token = authorization[0][7:]
-            l.debug('Got token from Authorization')
+        elif authorization and authorization.startswith('Bearer '):
+            token_value = authorization[7:]
+            l.debug('Got token from Authorization header')
         else:
-            l.debug('Got no token!')
+            l.debug('No token provided in headers')
 
-        info: m.TokenData | None = sess.get(m.TokenData, token)
-        if info:
-            if info.type in self.allowed_token_types:
-                return info
-            else:
-                l.debug(f'Token type {info.type} isn\'t in {self.allowed_token_types}!')
-        else:
-            l.debug(f'Token doesn\'t exist!')
-
-        if self.throw:
-            raise e.APIUnsuccessful(hc.HTTP_401_UNAUTHORIZED, 'Invaild token')
-        else:
+        if not token_value:
+            if self.throw:
+                raise e.APIUnsuccessful(hc.HTTP_401_UNAUTHORIZED, 'Missing token')
             return None
 
+        info: m.TokenData | None = sess.get(m.TokenData, token_value)
+        now_ts = datetime.now(timezone.utc).timestamp()
+        if info:
+            if info.expire and info.expire > 0 and info.expire < now_ts:
+                sess.delete(info)
+                sess.commit()
+                info = None
+            elif _base_token_type(info.type) in self.allowed_token_types:
+                login_type = _token_login_type(info.type)
+                if self.allowed_login_types and login_type not in self.allowed_login_types:
+                    l.debug(f'Token login type {login_type} is not allowed in {self.allowed_login_types}')
+                else:
+                    info.last_active = now_ts
+                    sess.add(info)
+                    sess.commit()
+                    return info
+            else:
+                l.debug(f'Token type {info.type} is not allowed in {self.allowed_token_types}')
+        else:
+            l.debug('Token not found in database')
 
-@app.get('/user1')
-def user1(tk: m.TokenData = Depends(TokenDep(['user', 'device', 'api'], throw=True))):
-    return {'token': tk}
+        if self.throw:
+            raise e.APIUnsuccessful(hc.HTTP_401_UNAUTHORIZED, 'Invalid token')
+        return None
 # endregion auth
 
 # region routes
@@ -627,6 +841,60 @@ class UpdateDeviceRequest(BaseModel):
     fields: dict | None = None
 
 
+class CreateDeviceRequest(BaseModel):
+    name: str
+    status: str | None = None
+    using: bool | None = None
+    fields: dict | None = None
+
+
+class CreateDeviceResponse(BaseModel):
+    id: str
+    device: m.DeviceData
+    token: UUID
+    refresh_token: UUID
+    expires_at: float | None = None
+
+
+@devices_router.post('/', response_model=CreateDeviceResponse, status_code=hc.HTTP_201_CREATED, name='Create a device')
+async def create_device(
+    sess: SessionDep,
+    req: CreateDeviceRequest,
+    _: m.TokenData = Depends(TokenDep(allowed_login_types=('web', 'dev')))
+):
+    device_id = uuid().hex
+    status = req.status or ''
+    using = req.using if req.using is not None else False
+    fields = req.fields or {}
+    device = m.DeviceData(
+        id=device_id,
+        name=req.name,
+        status=status,
+        using=using,
+        fields=fields
+    )
+    sess.add(device)
+    meta = sess.exec(select(m.Metadata)).first()
+    if meta:
+        meta.last_updated = time()
+    sess.commit()
+    tokens = _issue_full_session(sess, device_id, 'device')
+    await manager.evt_broadcast('device_added', {
+        'id': device_id,
+        'name': req.name,
+        'status': status,
+        'using': using,
+        'fields': fields
+    })
+    return {
+        'id': device_id,
+        'device': device,
+        'token': tokens.token,
+        'refresh_token': tokens.refresh_token,
+        'expires_at': tokens.expires_at
+    }
+
+
 @devices_router.put('/{device_id}', status_code=hc.HTTP_204_NO_CONTENT, name='Create or update a device')
 async def update_device(sess: SessionDep, device_id: str, req: UpdateDeviceRequest):
     device = sess.get(m.DeviceData, device_id)
@@ -654,36 +922,19 @@ async def update_device(sess: SessionDep, device_id: str, req: UpdateDeviceReque
             await manager.evt_broadcast('device_updated', {'id': device_id, 'updated_fields': updated})
         return
     else:
-        # not exist -> create
-        if not req.name:
-            raise e.APIUnsuccessful(hc.HTTP_400_BAD_REQUEST, 'Device name is required')
-        status = req.status or ''
-        using = req.using if req.using is not None else False
-        fields = req.fields or {}
-        device = m.DeviceData(
-            id=device_id,
-            name=req.name,
-            status=status,
-            using=using,
-            fields=fields
-        )
-        sess.add(device)
-        meta = sess.exec(select(m.Metadata)).first()
-        if meta:
-            meta.last_updated = time()
-        sess.commit()
-        await manager.evt_broadcast('device_added', {'id': device_id, 'name': req.name, 'status': status, 'using': using, 'fields': fields})
-        return Response(status_code=hc.HTTP_201_CREATED)
+        raise e.APIUnsuccessful(hc.HTTP_404_NOT_FOUND, 'Device not found')
 
 
 @devices_router.delete('/{device_id}', status_code=hc.HTTP_204_NO_CONTENT)
 async def delete_device(sess: SessionDep, device_id: str):
     device = sess.get(m.DeviceData, device_id)
     if device:
+        device_hash = _device_hash(device.id)
         sess.delete(device)
         meta = sess.exec(select(m.Metadata)).first()
         if meta:
             meta.last_updated = time()
+        _clear_device_tokens(sess, device_hash)
         sess.commit()
         await manager.evt_broadcast('device_deleted', {'id': device_id})
     return
@@ -705,6 +956,7 @@ async def get_devices(sess: SessionDep):
 async def clear_devices(sess: SessionDep):
     devices = sess.exec(select(m.DeviceData)).all()
     for d in devices:
+        _clear_device_tokens(sess, _device_hash(d.id))
         sess.delete(d)
     meta = sess.exec(select(m.Metadata)).first()
     if meta:

@@ -83,9 +83,14 @@ class ConfigModel(BaseModel):
     Event-Stream Ping 间隔 (单位: 秒, 设置为 0 禁用)
     '''
 
-    user_token_expires_days: PositiveInt = 7
+    auth_access_token_expires_minutes: PositiveInt = 60
     '''
-    User Token (用户登录管理面板) 过期时间 (天)
+    Auth Token (管理登录) 过期时间 (分钟)
+    '''
+
+    auth_refresh_token_expires_days: PositiveInt = 30
+    '''
+    Refresh Token (管理登录) 过期时间 (天)
     '''
 
     device_token_expires_days: PositiveInt = 365

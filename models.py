@@ -27,11 +27,12 @@ class DeviceData(SQLModel, table=True):
     last_updated: float = Field(default_factory=time)
 
 
-class UserData(SQLModel, table=True):
+class AuthSecret(SQLModel, table=True):
     '''
-    用户数据
+    鉴权密钥（沿用历史表结构）
     '''
-    username: str = Field(primary_key=True)
+    __tablename__ = 'userdata'
+    username: str = Field(default='__sleepy__', primary_key=True)
     password: bytes = Field()  # 2x hashed (sha256 + salt)
     salt: bytes = Field()
 
@@ -41,7 +42,7 @@ class TokenData(SQLModel, table=True):
     Token 数据
     '''
     token: str = Field(primary_key=True, index=True)
-    type: str= Field(index=True) # user / device / api
+    type: str = Field(index=True)  # auth_access / auth_refresh
     created: float = Field(default_factory=time, index=True)
     last_active: float = Field(default_factory=time, index=True)
     expire: float = Field(default=0.0, index=True)   # 0 -> never expires
