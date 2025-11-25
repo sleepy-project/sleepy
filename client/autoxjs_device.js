@@ -107,9 +107,9 @@ function check_status() {
     
     // 检查是否有有效的音乐信息
     if (isMusicStatusValid() && baseStatus) {
-        var musicStatus = readMusicStatus();
+        const musicStatus = readMusicStatus();
         // 组合基础状态和音乐信息
-        var finalStatus = baseStatus + `\n【${musicStatus.appName}正在播放】` + '：' + musicStatus.musicTitle;
+        const finalStatus = baseStatus + `\n【${musicStatus.appName}正在播放】` + '：' + musicStatus.musicTitle;
         log(`[sleepyc] 组合状态: ${finalStatus}`);
         return finalStatus;
     }
