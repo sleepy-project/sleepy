@@ -31,7 +31,7 @@ function readMusicStatus() {
             };
         }
         
-        var content = files.read(MUSIC_STATUS_FILE);
+        const content = files.read(MUSIC_STATUS_FILE);
         return JSON.parse(content);
     } catch (e) {
         console.error("[sleepyc] 读取音乐状态文件失败: " + e);
@@ -46,13 +46,13 @@ function readMusicStatus() {
 
 // 检查音乐状态是否有效
 function isMusicStatusValid() {
-    var musicStatus = readMusicStatus();
+    const musicStatus = readMusicStatus();
     
     if (!musicStatus.isValid) {
         return false;
     }
     
-    var currentTime = new Date().getTime();
+    const currentTime = new Date().getTime();
     if (currentTime - musicStatus.updateTime > MUSIC_STATUS_TIMEOUT) {
         log("[check] 音乐状态已超时");
         return false;
@@ -95,6 +95,7 @@ function check_status() {
     var battery = device.getBattery(); // 电池百分比
     // log(`[check] battery: ${battery}%`);
     // 判断设备充电状态
+    var baseStatus = '';
     if (device.isCharging()) {
         baseStatus = `[🔋${battery}%⚡] 前台应用: ${app_name}`;
     } else {

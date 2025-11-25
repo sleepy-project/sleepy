@@ -10,7 +10,7 @@
 
 // config start
 // 常用音乐软件的包名白名单
-var musicAppWhitelist = {
+const musicAppWhitelist = {
     "网易云音乐": "com.netease.cloudmusic",
     "QQ音乐": "com.tencent.qqmusic", 
     "酷狗音乐": "com.kugou.android",
@@ -33,7 +33,7 @@ files.ensureDir(files.path(MUSIC_STATUS_FILE));
 
 // 初始化音乐状态文件
 function initMusicStatusFile() {
-    var initialStatus = {
+    const initialStatus = {
         appName: "",
         musicTitle: "",
         updateTime: 0,
@@ -44,7 +44,7 @@ function initMusicStatusFile() {
 
 // 写入音乐状态到文件
 function writeMusicStatus(appName, musicTitle) {
-    var status = {
+    const status = {
         appName: appName,
         musicTitle: musicTitle,
         updateTime: new Date().getTime(),
@@ -67,7 +67,7 @@ events.onNotification(function(notification) {
     // 检查是否为媒体通知
     if (notification.category === "transport") {
         // 获取通知的包名
-        var packageName = notification.getPackageName();
+        const packageName = notification.getPackageName();
         // 检查是否在白名单中
         if (isInMusicWhitelist(packageName)) {
             processMusicNotification(notification);
@@ -87,14 +87,14 @@ function isInMusicWhitelist(packageName) {
 
 function processMusicNotification(notification) {
     // 获取应用名称
-    var appName = getAppNameFromPackage(notification.getPackageName());
+    const appName = getAppNameFromPackage(notification.getPackageName());
     
     // console.log("音乐应用: " + appName);
     // console.log("通知标题: " + notification.getTitle());
     // console.log("通知内容: " + notification.getText());
 
     // 获取音乐标题（优先使用标题，否则使用通知文本）
-    var musicTitle = `${notification.getTitle()} - ${notification.getText()}` || notification.getTitle() || notification.getText() ||  '';
+    const musicTitle = `${notification.getTitle()} - ${notification.getText()}` || notification.getTitle() || notification.getText() ||  '';
     
     if (musicTitle && appName) {
         console.log("成功提取音乐信息: " + appName + " - " + musicTitle);
