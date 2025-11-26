@@ -6,6 +6,7 @@ license = { text = "MIT" }
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "argparse>=1.4.0",
     "bcrypt>=5.0.0",
     "dotenv>=0.9.9",
     "fastapi[standard]>=0.116.1",

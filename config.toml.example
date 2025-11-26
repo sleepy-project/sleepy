@@ -1,0 +1,23 @@
+# Sleepy 配置示例
+# 将此文件复制为 config.toml 并按需调整
+
+host = "0.0.0.0"
+port = 9010
+# 可选: 在此处添加 "dev = true" 以允许 dev token 登录
+
+[log]
+level = "INFO"
+file = "logs/{time:YYYY-MM-DD}.log"
+file_level = "INFO"
+rotation = "1 days"
+retention = "7 days"
+
+# SQLite 示例，其他数据库请参考 SQLAlchemy URL 规则
+# SQLite (相对路径)
+database = "sqlite:///data.db"
+# MySQL 样例: "mysql://user:password@127.0.0.1:3306/sleepy"
+
+ping_interval = 20
+auth_access_token_expires_minutes = 60
+auth_refresh_token_expires_days = 30
+device_token_expires_days = 365

@@ -63,6 +63,11 @@ class ConfigModel(BaseModel):
     服务监听端口 (仅在直接启动 main.py 时有效)
     '''
 
+    dev: bool = False
+    '''
+    启用 dev Token 登录 (仅用于开发环境)
+    '''
+
     # workers: PositiveInt = 2
     # '''
     # 服务 Worker 数 (仅在直接启动 main.py 时有效)
@@ -96,11 +101,6 @@ class ConfigModel(BaseModel):
     device_token_expires_days: PositiveInt = 365
     '''
     (默认) Device Token (设备更新状态密钥) 过期时间 (天)
-    '''
-
-    api_token_expires_days: PositiveInt = 180
-    '''
-    (默认) API Token 过期时间 (天)
     '''
 
 

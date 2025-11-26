@@ -11,6 +11,7 @@ from sys import stderr
 from traceback import format_exc
 from uuid import uuid4 as uuid, UUID
 from hashlib import sha256
+import argparse
 
 from uvicorn import run
 from loguru import logger as l
@@ -101,6 +102,18 @@ def create_db_and_tables():
             l.info('No metadata found, creating...')
             sess.add(m.Metadata())
             sess.commit()
+
+
+def perform_fresh_start():
+    l.warning('Fresh start requested: dropping all tables before start')
+    SQLModel.metadata.drop_all(engine)
+    create_db_and_tables()
+
+
+def parse_cli_args():
+    parser = argparse.ArgumentParser(description='Sleepy Backend server runner')
+    parser.add_argument('--fresh-start', action='store_true', help='Drop and recreate database before starting the server')
+    return parser.parse_args()
 
 
 def get_session():
@@ -217,7 +230,7 @@ def custom_openapi():
         'type': 'apiKey',
         'in': 'header',
         'name': 'X-Sleepy-Token',
-        'description': ce('在 `X-Sleepy-Token` 中提供 token', 'Header for sending the raw token')
+        'description': ce('在 `X-Sleepy-Token` 中提供 token', '`X-Sleepy-Token` header for sending the raw token')
     })
     openapi_schema.setdefault('security', [
         {'SleepyToken': []}
@@ -261,7 +274,8 @@ app.openapi = custom_openapi
 
 @app.exception_handler(e.APIUnsuccessful)
 async def api_unsuccessful_exception_handler(request: Request, exc: e.APIUnsuccessful):
-    l.error(f'APIUnsuccessful: {exc}')
+    log_fn = l.error if exc.code >= 500 else l.info
+    log_fn(f'APIUnsuccessful: {exc}')
     return JSONResponse(status_code=exc.code, content={
         'code': exc.code,
         'message': exc.message,
@@ -340,6 +354,10 @@ def _normalize_password(password: str, hashed: bool) -> str:
 
 def _get_auth_secret(sess: Session) -> m.AuthSecret | None:
     return sess.exec(select(m.AuthSecret)).first()
+
+
+def _is_auth_initialized(sess: Session) -> bool:
+    return _get_auth_secret(sess) is not None
 
 
 def _ensure_auth_initialized(sess: Session) -> m.AuthSecret:
@@ -472,7 +490,7 @@ def _issue_access_from_refresh(sess: Session, refresh_record: m.TokenData) -> Au
 
 @app.post('/api/init', response_model=InitResponse, name='Initialize auth secret')
 async def init_auth(sess: SessionDep, req: InitRequest):
-    if _get_auth_secret(sess):
+    if _is_auth_initialized(sess):
         raise e.APIUnsuccessful(hc.HTTP_409_CONFLICT, 'Auth already initialized')
     normalized = _normalize_password(req.password, req.hashed)
     salt = bcrypt.gensalt()
@@ -976,6 +994,9 @@ app.include_router(devices_router)
 app.include_router(status_router)
 
 if __name__ == '__main__':
+    args = parse_cli_args()
+    if args.fresh_start:
+        perform_fresh_start()
     l.info(f'Starting server: {f"[{c.host}]" if ":" in c.host else c.host}:{c.port}')  # with {c.workers} workers')
     run('main:app', host=c.host, port=c.port)  # , workers=c.workers)
     print()
