@@ -21,3 +21,5 @@ ping_interval = 20
 auth_access_token_expires_minutes = 60
 auth_refresh_token_expires_days = 30
 device_token_expires_days = 365
+
+ws_refresh_interval = 10

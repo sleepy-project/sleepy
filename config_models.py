@@ -88,6 +88,11 @@ class ConfigModel(BaseModel):
     Event-Stream Ping 间隔 (单位: 秒, 设置为 0 禁用)
     '''
 
+    ws_refresh_interval: PositiveInt = 5
+    '''
+    /api/ws 推送刷新间隔 (秒)
+    '''
+
     auth_access_token_expires_minutes: PositiveInt = 60
     '''
     Auth Token (管理登录) 过期时间 (分钟)

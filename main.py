@@ -16,14 +16,16 @@ import argparse
 from uvicorn import run
 from loguru import logger as l
 from toml import load as load_toml
-from fastapi import FastAPI, APIRouter, Depends, HTTPException, Request, Header, WebSocket, WebSocketDisconnect, status as hc
+from fastapi import FastAPI, APIRouter, Depends, HTTPException, Request, Header, WebSocket, WebSocketDisconnect, status as hc, Security
 from fastapi.responses import JSONResponse, RedirectResponse, Response
+from fastapi.encoders import jsonable_encoder
 from sqlmodel import create_engine, SQLModel, Session, select
 from pydantic import BaseModel, model_validator
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from sse_starlette import EventSourceResponse, ServerSentEvent
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html, get_swagger_ui_oauth2_redirect_html
 from fastapi.openapi.utils import get_openapi
+from fastapi.security import APIKeyHeader
 import bcrypt
 
 from config import config as c
@@ -165,19 +167,18 @@ async def log_requests(request: Request, call_next: t.Callable):
             ip = 'unknown-ip'
             port = 0
         l.info(f'Incoming request: {ip}:{port} - {request.method} {request.url.path}')
+        resp: Response
+        p = u.perf_counter()
         try:
-            p = u.perf_counter()
-            resp: Response = await call_next(request)
+            resp = await call_next(request)
             l.info(f'Outgoing response: {resp.status_code} ({p()}ms)')
-            return resp
         except Exception as e:
             l.error(f'Server error: {e} ({p()}ms)\n{format_exc()}')
             resp = Response(f'Internal Server Error ({request_id})', 500)
-        finally:
-            resp.headers['X-Sleepy-Version'] = version_full
-            resp.headers['X-Sleepy-Request-Id'] = request_id
-            reqid.reset(token)
-            return resp
+        resp.headers['X-Sleepy-Version'] = version_full
+        resp.headers['X-Sleepy-Request-Id'] = request_id
+        reqid.reset(token)
+        return resp
 
 # endregion app-context
 
@@ -232,10 +233,6 @@ def custom_openapi():
         'name': 'X-Sleepy-Token',
         'description': ce('在 `X-Sleepy-Token` 中提供 token', '`X-Sleepy-Token` header for sending the raw token')
     })
-    openapi_schema.setdefault('security', [
-        {'SleepyToken': []}
-    ])
-
     for path in openapi_schema.get('paths', {}).values():
         for operation in path.values():
             if 'responses' not in operation:
@@ -299,8 +296,9 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 AUTH_ROOT_USERNAME = '__sleepy__'
 AUTH_ACCESS_PREFIX = 'auth_access'
 AUTH_REFRESH_PREFIX = 'auth_refresh'
-AUTH_ALLOWED_TYPES: tuple[str, ...] = ('web', 'dev', 'device')
+AUTH_ALLOWED_TYPES: tuple[str, ...] = ('web', 'dev')
 DEV_LOGIN_ALLOWED = bool(getattr(c, 'dev', False) or getattr(c, 'env', {}).get('dev', False))
+sleepy_token_header = APIKeyHeader(name='X-Sleepy-Token', scheme_name='SleepyToken', auto_error=False)
 
 auth_router = APIRouter(
     prefix='/api/auth',
@@ -319,14 +317,12 @@ class InitResponse(BaseModel):
 
 class AuthLoginRequest(BaseModel):
     password: str
-    type: t.Literal['web', 'dev', 'device'] = 'web'
+    type: t.Literal['web', 'dev'] = 'web'
     device_uid: str | None = None
     hashed: bool = True
 
     @model_validator(mode='after')
-    def _ensure_device_requires_uid(self):
-        if self.type == 'device' and not self.device_uid:
-            raise ValueError('device_uid is required when type is "device"')
+    def _ensure_dev_allowed(self):
         if self.type == 'dev' and not DEV_LOGIN_ALLOWED:
             raise ValueError('Dev login disabled in this environment')
         return self
@@ -563,13 +559,11 @@ class TokenDep:
     def __call__(
         self,
         sess: SessionDep,
-        authorization: t.Annotated[str | None, Header()] = None,
-        x_sleepy_token: t.Annotated[str | None, Header()] = None,
+        token_value: t.Annotated[str | None, Security(sleepy_token_header)] = None,
+        authorization: t.Annotated[str | None, Header(include_in_schema=False)] = None,
     ) -> m.TokenData | None:
-        token_value: str | None = None
-        if x_sleepy_token:
-            token_value = x_sleepy_token
-            l.debug('Got token from X-Sleepy-Token')
+        if token_value:
+            l.debug('Got token from X-Sleepy-Token security header')
         elif authorization and authorization.startswith('Bearer '):
             token_value = authorization[7:]
             l.debug('Got token from Authorization header')
@@ -691,6 +685,7 @@ class ConnManager:
 
         if not self._events:
             l.debug(f'No active connections for broadcast event: {event}')
+            await self.broadcast_pub({'event': event, 'data': data})
             return
 
         queues = list(self._events.copy())
@@ -715,6 +710,7 @@ class ConnManager:
         if failed_queues:
             l.debug(f'Removed {len(failed_queues)} failed queues, new connection count: {len(self._events)}')
             await self.evt_broadcast('online-changed', {'online': len(self._events)})
+        await self.broadcast_pub({'event': event, 'data': data})
 
     async def connect_pub(self, ws: WebSocket):
         self._public_ws.add(ws)
@@ -723,7 +719,17 @@ class ConnManager:
         self._public_ws.discard(ws)
 
     async def broadcast_pub(self, data: dict):
-        await asyncio.gather(*(asyncio.create_task(c.send_json(data)) for c in self._public_ws), return_exceptions=True)
+        if not self._public_ws:
+            return
+        stale: list[WebSocket] = []
+        for conn in list(self._public_ws):
+            try:
+                await conn.send_json(data)
+            except Exception as exc:
+                l.debug(f'Failed to send WS broadcast: {exc}')
+                stale.append(conn)
+        for conn in stale:
+            self._public_ws.discard(conn)
 
 
 manager = ConnManager()
@@ -775,6 +781,39 @@ async def websocket_device(ws: WebSocket):
         await ws.accept()
         while True:
             data: dict = await ws.receive_json()
+            # 解析字段
+            using = data.get('using')
+            status = data.get('status')
+            fields = data.get('fields', {})
+            # 类型转换
+            using_bool = str(using) == '1' or using is True
+            # 数据库操作
+            with Session(engine) as sess:
+                device = sess.exec(select(m.DeviceData).where(m.DeviceData.id == ws.path_params['device_id'])).first()
+                if not device:
+                    device = m.DeviceData(
+                        id=ws.path_params['device_id'],
+                        name=ws.path_params['device_id'],
+                        status=str(status) if status is not None else '',
+                        using=using_bool,
+                        fields=fields,
+                        last_updated=time()
+                    )
+                    sess.add(device)
+                else:
+                    device.status = str(status) if status is not None else device.status
+                    device.using = using_bool
+                    device.fields = fields
+                    device.last_updated = time()
+                sess.commit()
+            # 返回结果
+            await ws.send_json({
+                'ok': True,
+                'id': ws.path_params['device_id'],
+                'status': status,
+                'using': using,
+                'fields': fields
+            })
 
     except WebSocketDisconnect:
         pass
@@ -782,12 +821,55 @@ async def websocket_device(ws: WebSocket):
 
 @app.websocket('/api/ws')
 async def websocket_public(ws: WebSocket):
+    await ws.accept()
+    await manager.connect_pub(ws)
+    stop_event = asyncio.Event()
+
+    async def push_periodic_snapshot():
+        interval = getattr(c, 'ws_refresh_interval', 5)
+        while not stop_event.is_set():
+            snapshot = None
+            try:
+                with Session(engine) as sess:
+                    meta = sess.exec(select(m.Metadata)).first()
+                    if meta:
+                        devices = sess.exec(select(m.DeviceData)).all()
+                        snapshot = {
+                            'time': time(),
+                            'status': meta.status,
+                            'devices': devices,
+                            'last_updated': meta.last_updated
+                        }
+                if snapshot:
+                    await ws.send_json({'event': 'refresh', 'data': jsonable_encoder(snapshot)})
+            except WebSocketDisconnect:
+                stop_event.set()
+                break
+            except Exception as exc:
+                l.warning(f'/api/ws push failed: {exc}')
+            try:
+                await asyncio.wait_for(stop_event.wait(), timeout=interval)
+            except asyncio.TimeoutError:
+                continue
+
+    sender_task = asyncio.create_task(push_periodic_snapshot())
     try:
-        await ws.accept()
-        await manager.connect_pub(ws)
+        await ws.send_json({'event': 'connected', 'interval': getattr(c, 'ws_refresh_interval', 5)})
         while True:
-            data = await ws.receive_json()
+            message = await ws.receive()
+            if message['type'] == 'websocket.disconnect':
+                break
+            if message.get('text') or message.get('bytes'):
+                l.debug('Received data on /api/ws, ignoring payload')
     except WebSocketDisconnect:
+        pass
+    finally:
+        stop_event.set()
+        sender_task.cancel()
+        try:
+            await sender_task
+        except asyncio.CancelledError:
+            pass
         await manager.disconnect_pub(ws)
 
 # endregion routes-ws
@@ -878,7 +960,7 @@ class CreateDeviceResponse(BaseModel):
 async def create_device(
     sess: SessionDep,
     req: CreateDeviceRequest,
-    _: m.TokenData = Depends(TokenDep(allowed_login_types=('web', 'dev')))
+    _: m.TokenData = Security(TokenDep(allowed_login_types=('web', 'dev')))
 ):
     device_id = uuid().hex
     status = req.status or ''
@@ -914,12 +996,17 @@ async def create_device(
 
 
 @devices_router.put('/{device_id}', status_code=hc.HTTP_204_NO_CONTENT, name='Create or update a device')
-async def update_device(sess: SessionDep, device_id: str, req: UpdateDeviceRequest):
+async def update_device(
+    sess: SessionDep,
+    device_id: str,
+    req: UpdateDeviceRequest,
+    _: m.TokenData = Security(TokenDep(allowed_login_types=('web', 'dev')))
+):
     device = sess.get(m.DeviceData, device_id)
     if device:
         updated = {}
         # exist -> update
-        if req.name:
+        if req.name is not None:
             device.name = req.name
             updated['name'] = req.name
         if req.status:
@@ -999,7 +1086,7 @@ if __name__ == '__main__':
         perform_fresh_start()
     l.info(f'Starting server: {f"[{c.host}]" if ":" in c.host else c.host}:{c.port}')  # with {c.workers} workers')
     run('main:app', host=c.host, port=c.port)  # , workers=c.workers)
-    print()
     l.info('Bye.')
+    exit(0)
 
 # endregion main
