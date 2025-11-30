@@ -12,7 +12,7 @@
 // 常用音乐软件的包名白名单
 const musicAppWhitelist = {
     "网易云音乐": "com.netease.cloudmusic",
-    "QQ音乐": "com.tencent.qqmusic", 
+    "QQ音乐": "com.tencent.qqmusic",
     "酷狗音乐": "com.kugou.android",
     "酷我音乐": "cn.kuwo.player",
     "Spotify": "com.spotify.music",
@@ -50,7 +50,7 @@ function writeMusicStatus(appName, musicTitle) {
         updateTime: new Date().getTime(),
         isValid: true
     };
-    
+
     try {
         files.write(MUSIC_STATUS_FILE, JSON.stringify(status));
         console.log("写入音乐状态: " + appName + " - " + musicTitle);
@@ -63,7 +63,7 @@ function writeMusicStatus(appName, musicTitle) {
 events.observeNotification();
 
 // 监听通知事件
-events.onNotification(function(notification) {
+events.onNotification(function (notification) {
     // 检查是否为媒体通知
     if (notification.category === "transport") {
         // 获取通知的包名
@@ -77,7 +77,7 @@ events.onNotification(function(notification) {
 
 function isInMusicWhitelist(packageName) {
     // 遍历白名单检查包名
-    for (var appName in musicAppWhitelist) {
+    for (let appName in musicAppWhitelist) {
         if (musicAppWhitelist[appName] === packageName) {
             return true;
         }
@@ -88,14 +88,20 @@ function isInMusicWhitelist(packageName) {
 function processMusicNotification(notification) {
     // 获取应用名称
     const appName = getAppNameFromPackage(notification.getPackageName());
-    
+
     // console.log("音乐应用: " + appName);
     // console.log("通知标题: " + notification.getTitle());
     // console.log("通知内容: " + notification.getText());
 
     // 获取音乐标题（优先使用标题，否则使用通知文本）
-    const musicTitle = `${notification.getTitle()} - ${notification.getText()}` || notification.getTitle() || notification.getText() ||  '';
-    
+    let title = notification.getTitle();
+    let text = notification.getText();
+    if (title && text) {
+        const musicTitle = `${title} - ${text}`;
+    } else {
+        const musicTitle = title || text || '';
+    }
+
     if (musicTitle && appName) {
         console.log("成功提取音乐信息: " + appName + " - " + musicTitle);
         // 写入到文件
@@ -109,7 +115,7 @@ function processMusicNotification(notification) {
 
 function getAppNameFromPackage(packageName) {
     // 从白名单中查找对应的应用名称
-    for (var appName in musicAppWhitelist) {
+    for (let appName in musicAppWhitelist) {
         if (musicAppWhitelist[appName] === packageName) {
             return appName;
         }
@@ -135,4 +141,4 @@ console.log("开始监听音乐播放通知...");
 // console.log("音乐状态文件: " + MUSIC_STATUS_FILE);
 
 // 保持脚本运行
-setInterval(() => {}, 1000);
+setInterval(() => { }, 1000);

@@ -8,7 +8,7 @@ Co-authored-by: makabaka-andy - Changed POST to GET requests
 */
 
 // config start
-const API_URL = 'apiurl'; // 你的完整 API 地址，以 `/device/set` 结尾
+const API_URL = 'https://api.url/device/set'; // 你的完整 API 地址，以 `/device/set` 结尾
 const SECRET = 'secret'; // 你的 secret
 const ID = 'deviceid'; // 你的设备 id, 唯一
 const SHOW_NAME = 'devicename'; // 你的设备名称, 将显示在网页上
@@ -77,7 +77,7 @@ function error(msg) {
     }
 }
 
-var last_status = '';
+let last_status = '';
 
 function check_status() {
     /*
@@ -88,14 +88,14 @@ function check_status() {
     if (!device.isScreenOn()) {
         return ('');
     }
-    var app_package = currentPackage(); // 应用包名
+    let app_package = currentPackage(); // 应用包名
     // log(`[check] app_package: '${app_package}'`);
-    var app_name = app.getAppName(app_package); // 应用名称
+    let app_name = app.getAppName(app_package); // 应用名称
     // log(`[check] app_name: '${app_name}'`);
-    var battery = device.getBattery(); // 电池百分比
+    let battery = device.getBattery(); // 电池百分比
     // log(`[check] battery: ${battery}%`);
     // 判断设备充电状态
-    var baseStatus = '';
+    let baseStatus = '';
     if (device.isCharging()) {
         baseStatus = `[🔋${battery}%⚡] 前台应用: ${app_name}`;
     } else {
@@ -121,7 +121,7 @@ function send_status() {
     /*
     发送 check_status() 的返回
     */
-    var app_name = check_status();
+    let app_name = check_status();
     log(`ret app_name: '${app_name}'`);
 
     // 判断是否与上次相同
@@ -131,7 +131,7 @@ function send_status() {
     }
     last_status = app_name;
     // 判断 using
-    var using = app_name !== '';
+    let using = app_name !== '';
     log('[sleepyc] using: ' + using);
 
     // POST to api

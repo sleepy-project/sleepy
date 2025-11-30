@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # linux_device_hyprland.sh
-# 在 Linux (Hyprland) 上获取窗口名称\
+# 在 Linux (Hyprland) 上获取窗口名称
 # by: @inoryxin
 
 # --- config start
