@@ -45,7 +45,7 @@
                     <p>当前主题: <span id="current-theme">{{ current_theme }}</span></p>
                     <div style="margin-top: 10px">
                         主题: {% for theme in available_themes %}
-                        <a href="/panel?theme={{ theme }}" style="color: rgb(0, 255, 0)">{{ theme }}</a>{% if not loop.last %} | {% endif %} {% endfor %}
+                        <a href="/panel?theme={{ theme }}">{{ theme }}</a>{% if not loop.last %} | {% endif %} {% endfor %}
                     </div>
                 </div>
             </div>
