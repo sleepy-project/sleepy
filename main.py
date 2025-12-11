@@ -313,7 +313,7 @@ def before_request():
     flask.g.secret = c.main.secret
 
     evt = p.trigger_event(pl.BeforeRequestHook())
-    if evt.interception:
+    if evt and evt.interception:
         return evt.interception
 
 

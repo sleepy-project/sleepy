@@ -316,7 +316,8 @@ class ConfigModel(BaseModel):
     metrics: _MetricsConfigModel = _MetricsConfigModel()
 
     plugins_enabled: list[str] = [
-        'v4_compatible' # 默认启用 v4 兼容
+        'v4_compatible', # 默认启用 v4 兼容
+        'theme_detect', # 默认启用主题检测
     ]
     '''
     `plugins_enabled`
