@@ -99,7 +99,8 @@ div p {
   border-radius: 10px;
   border: 1px solid rgba(0, 102, 204, 0.3);
   position: relative;
-  background-color: rgba(230, 242, 255, 0.8);
+  background-color: rgba(230, 242, 255,
+      var(--card-alpha));
   color: var(--text-color);
   box-shadow: 0 8px 32px rgba(0, 102, 204, 0.2),
     inset 0 0 6px 1px rgba(0, 102, 204, 0.1);

@@ -1,0 +1,9 @@
+<!-- no slider for github theme. -->
+<h1><ruby>似<rt>sǐ</rt></ruby>了吗?</h1>
+<h3><i><b>{{ username }}'s</b></i> Status:<br><a id="status">{{ status.name }}</a></h3>
+<p id="additional-info">{{ status.desc | safe }}</p>
+<p id="device-status"></p>
+<p id="last-updated">最后更新: {{ last_updated }}</p>
+<script>
+    document.getElementById('status').classList.add("{{ status.color }}");
+</script>
