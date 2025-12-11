@@ -1,29 +1,5 @@
 const sliderInput = document.getElementById('sliderRange');
 
-
-// ================= 主题系统 =================
-// 保存主题偏好
-function saveThemePreference(isDark) {
-    localStorage.setItem('moonlight.themePref', isDark ? 'dark' : 'light');
-}
-
-// 获取主题偏好
-function getThemePreference() {
-    return localStorage.getItem('moonlight.themePref') || 'auto';
-}
-
-// 应用主题
-function applyTheme(theme) {
-    document.querySelectorAll('.light, .dark').forEach(el => {
-        if (theme === 'dark' && el.classList.contains('light')) {
-            el.classList.replace('light', 'dark');
-        } else if (theme === 'light' && el.classList.contains('dark')) {
-            el.classList.replace('dark', 'light');
-        }
-    });
-}
-
-
 // ================= 透明度系统 =================
 // 应用保存的透明度
 function applySavedOpacity() {
@@ -36,24 +12,6 @@ function applySavedOpacity() {
 
 // ================= 初始化 =================
 document.addEventListener('DOMContentLoaded', () => {
-    // 应用保存的主题到所有卡片
-    var initTheme = getThemePreference();
-    if (initTheme === 'auto') {
-        // 如没有设置过, 获取系统主题设置
-        const themeMedia = window.matchMedia("(prefers-color-scheme: dark)");
-        if (themeMedia.matches) {
-            // 暗色
-            initTheme = 'dark'
-        } else {
-            // 亮色
-            initTheme = 'light';
-        }
-    }
-    document.querySelectorAll('.card').forEach(el => {
-        el.classList.add(initTheme);
-    });
-
-    // 应用保存的透明度
     applySavedOpacity();
 });
 
