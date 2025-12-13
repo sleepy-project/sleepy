@@ -95,13 +95,6 @@ class _MainConfigModel(BaseModel):
     默认: `Asia/Shanghai` (北京时间)
     '''
 
-    checkdata_interval: PositiveInt = 120
-    '''
-    `main.checkdata_interval`
-    多久检查一次数据是否有更改 (秒)
-    - *建议设置为 2 ~ 5 分钟 (120s ~ 300s)*
-    '''
-
     secret: str = ''
     '''
     `main.secret`

@@ -10,7 +10,7 @@ from io import BytesIO
 from werkzeug.security import safe_join
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import JSON, Integer, Float, String, Boolean, Text, DateTime
+from sqlalchemy import JSON, Integer, Float, String, Boolean, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.exc import SQLAlchemyError
 from objtyping import to_primitive

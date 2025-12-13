@@ -9,7 +9,7 @@ import plugin as pl
 
 class ThemeDetectConfig(BaseModel):
     light: str = 'default'
-    dark: str= 'dark'
+    dark: str = 'dark'
 
 l = getLogger(__name__)
 
