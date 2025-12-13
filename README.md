@@ -106,8 +106,8 @@
 
 ---
 
-[link-dc]: https://sleepy.siiway.top/t/dc
-[link-tg]: https://sleepy.siiway.top/t/tgc
-[link-qq]: https://sleepy.siiway.top/t/qq
-[link-issue-bug]: https://sleepy.siiway.top/t/bug
-[link-issue-feature]: https://sleepy.siiway.top/t/feature
+[link-dc]: https://sleepy.wss.moe/dc
+[link-tg]: https://sleepy.wss.moe/tgc
+[link-qq]: https://sleepy.wss.moe/qq
+[link-issue-bug]: https://sleepy.wss.moe/bug
+[link-issue-feature]: https://sleepy.wss.moe/feature

@@ -9,9 +9,9 @@
 print(f'''
 Welcome to Sleepy Project 2025!
 Give us a Star 🌟 please: https://github.com/sleepy-project/sleepy
-Bug Report: https://sleepy.siiway.top/t/bug
-Feature Request: https://sleepy.siiway.top/t/feature
-Security Report: https://sleepy.siiway.top/t/security
+Bug Report: https://sleepy.wss.moe/bug
+Feature Request: https://sleepy.wss.moe/feature
+Security Report: https://sleepy.wss.moe/security
 '''[1:], flush=True)
 
 # import modules
@@ -42,7 +42,7 @@ except:
 Import module Failed!
  * Please make sure you installed all dependencies in requirements.txt
  * If you don't know how, see doc/deploy.md
- * If you believe that's our fault, report to us: https://sleepy.siiway.top/t/bug
+ * If you believe that's our fault, report to us: https://sleepy.wss.moe/bug
  * And provide the logs (below) to us:
 '''[1:-1], flush=True)
     raise
