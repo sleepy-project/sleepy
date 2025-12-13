@@ -4,6 +4,7 @@ from logging import getLogger
 
 from pydantic import BaseModel
 import flask
+from json import dumps
 
 import plugin as pl
 
@@ -29,7 +30,7 @@ def on_before_request(event: pl.BeforeRequestHook, request):
     '''
     # 如果已有 theme cookie，跳过
     if flask.request.cookies.get('sleepy-theme'):
-        return
+        return event
 
     color_scheme = flask.request.headers.get('Sec-CH-Prefers-Color-Scheme')
 
@@ -45,18 +46,18 @@ def inject_theme_detect():
     '''
     方案 2 - 注入脚本，发送用户系统暗色模式偏好
     '''
-    return '''
+    themes = dumps({'dark': c.dark, 'light': c.light})
+    return f'''
     <script>
     // 检测系统暗色模式并重定向
-    if (!document.cookie.includes('sleepy-theme') && window.matchMedia) {
+    const themes = {themes};
+    if (!document.cookie.includes('sleepy-theme') && window.matchMedia) {{
         const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const theme = isDark ? '{dark}' : '{light}';
-        document.cookie = `sleepy-theme=${theme}; path=/; SameSite=Lax`;
-        if (window.location.search.indexOf('theme=') === -1) {
+        const theme = isDark ? themes.dark : themes.light;
+        document.cookie = `sleepy-theme=${{theme}}; path=/; SameSite=Lax`;
+        if (window.location.search.indexOf('theme=') === -1) {{
             window.location.reload();
-        }
-    }
+        }}
+    }}
     </script>
-    ''' \
-    .replace('{dark}', c.dark) \
-    .replace('{light}', c.light)
+    '''
