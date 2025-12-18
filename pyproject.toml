@@ -29,4 +29,4 @@ issues = "https://github.com/sleepy-project/sleepy/issues"
 
 [tool.sleepy]
 version = [6, 0, 0]
-version-str = "6.0-dev-20251212"
+version-str = "6.0-dev-20251218"

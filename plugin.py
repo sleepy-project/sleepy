@@ -4,10 +4,11 @@ import os
 import sys
 import importlib.util
 from pathlib import Path
-from typing import Dict, List, Callable, Any, Optional
-from dataclasses import dataclass
+from typing import Dict, List, Callable, Any, Optional, Set
+from dataclasses import dataclass, field
 from loguru import logger as l
 from fastapi import FastAPI, APIRouter, Response, Request
+from fastapi.routing import APIRoute
 from toml import load as load_toml
 import utils as u
 
@@ -27,12 +28,64 @@ class PluginMetadata:
             self.dependencies = []
 
 
+class PluginRoute:
+    """插件路由包装器"""
+    def __init__(self, path: str, endpoint: Callable, methods: List[str], override: bool = False, **kwargs):
+        self.path = path
+        self.endpoint = endpoint
+        self.methods = methods
+        self.override = override
+        self.kwargs = kwargs
+
+
 class PluginBase:
     """插件基类"""
     
     def __init__(self, metadata: PluginMetadata):
         self.metadata = metadata
         self.router: Optional[APIRouter] = None
+        self._routes: List[PluginRoute] = []
+    
+    def add_route(
+        self,
+        path: str,
+        endpoint: Callable,
+        methods: List[str] = None,
+        override: bool = False,
+        **kwargs
+    ):
+        """
+        添加路由到插件
+        
+        :param path: 路由路径
+        :param endpoint: 端点函数
+        :param methods: HTTP 方法列表
+        :param override: 是否覆盖已存在的路由
+        :param kwargs: 其他路由参数 (tags, name, response_model 等)
+        """
+        if methods is None:
+            methods = ["GET"]
+        
+        route = PluginRoute(
+            path=path,
+            endpoint=endpoint,
+            methods=methods,
+            override=override,
+            **kwargs
+        )
+        self._routes.append(route)
+        l.debug(f'Plugin {self.metadata.name} registered route: {path} {methods} (override={override})')
+    
+    def get_routes(self, override_only: bool = False) -> List[PluginRoute]:
+        """
+        获取插件的路由列表
+        
+        :param override_only: 是否只返回标记为 override 的路由
+        :return: 路由列表
+        """
+        if override_only:
+            return [r for r in self._routes if r.override]
+        return self._routes
     
     def on_load(self):
         """插件加载时调用"""
@@ -43,12 +96,12 @@ class PluginBase:
         pass
     
     def setup_routes(self, app: FastAPI):
-        """设置路由 - 可选实现"""
+        """设置路由（推荐使用 add_route 方法）"""
         pass
     
     def modify_response(self, request: Request, response: Response, endpoint: str) -> Response:
         """
-        修改响应 - 可选实现
+        修改响应
         
         :param request: 原始请求
         :param response: 原始响应
@@ -66,6 +119,7 @@ class PluginManager:
         self.plugins: Dict[str, PluginBase] = {}
         self.metadata: Dict[str, PluginMetadata] = {}
         self._response_modifiers: List[tuple[str, Callable]] = []
+        self._overridden_routes: Dict[str, str] = {}  # path:method -> plugin_name
     
     def discover_plugins(self) -> List[str]:
         """
@@ -187,7 +241,7 @@ class PluginManager:
             return True
             
         except Exception as e:
-            l.error(f'Failed to load plugin {plugin_name}: {e}\n{u.format_exc() if hasattr(u, "format_exc") else ""}')
+            l.error(f'Failed to load plugin {plugin_name}: {e}')
             return False
     
     def load_all_plugins(self):
@@ -222,10 +276,59 @@ class PluginManager:
                     remaining.remove(plugin_name)
                     progress = True
             
-            # 如果一轮循环没有进展，说明有循环依赖或缺失依赖
+            # 如果一轮循环没有进展,说明有循环依赖或缺失依赖
             if not progress:
                 l.error(f'Cannot load plugins due to unresolved dependencies: {remaining}')
                 break
+    
+    def _remove_existing_route(self, app: FastAPI, path: str, methods: List[str]):
+        """
+        移除已存在的路由
+        
+        :param app: FastAPI 应用实例
+        :param path: 路由路径
+        :param methods: HTTP 方法列表
+        """
+        routes_to_remove = []
+        
+        for route in app.routes:
+            if hasattr(route, 'path') and route.path == path:
+                if hasattr(route, 'methods'):
+                    # 检查是否有方法交集
+                    if any(method in route.methods for method in methods):
+                        routes_to_remove.append(route)
+                        l.debug(f'Marking route for removal: {route.path} {route.methods}')
+        
+        for route in routes_to_remove:
+            app.routes.remove(route)
+            l.info(f'Removed existing route: {route.path} {getattr(route, "methods", [])}')
+    
+    def _add_plugin_route(self, app: FastAPI, plugin_name: str, route: PluginRoute):
+        """
+        添加插件路由到应用
+        
+        :param app: FastAPI 应用实例
+        :param plugin_name: 插件名称
+        :param route: 插件路由对象
+        """
+        # 如果需要覆盖，先移除已存在的路由
+        if route.override:
+            self._remove_existing_route(app, route.path, route.methods)
+            for method in route.methods:
+                route_key = f'{route.path}:{method}'
+                self._overridden_routes[route_key] = plugin_name
+            l.info(f'Plugin {plugin_name} overriding route: {route.path} {route.methods}')
+        
+        # 添加新路由
+        for method in route.methods:
+            app.add_api_route(
+                route.path,
+                route.endpoint,
+                methods=[method],
+                **route.kwargs
+            )
+        
+        l.debug(f'Added plugin route: {route.path} {route.methods}')
     
     def setup_plugin_routes(self, app: FastAPI):
         """
@@ -233,22 +336,37 @@ class PluginManager:
         
         :param app: FastAPI 应用实例
         """
+        # 第一阶段：处理非覆盖路由和插件专属路由器
         for plugin_name, plugin in self.plugins.items():
             try:
-                # 创建插件专属路由器（如果插件有自己的路由器）
+                # 创建插件专属路由器(如果插件有自己的路由器)
                 if plugin.router:
                     app.include_router(
                         plugin.router,
                         prefix=f'/api/plugin/{plugin_name}',
                         tags=[f'plugin:{plugin_name}']
                     )
-                    l.info(f'Registered routes for plugin: {plugin_name} at /api/plugin/{plugin_name}')
+                    l.info(f'Registered router for plugin: {plugin_name} at /api/plugin/{plugin_name}')
                 
                 # 调用插件自定义路由设置
                 plugin.setup_routes(app)
                 
+                # 添加非覆盖路由
+                for route in plugin.get_routes(override_only=False):
+                    if not route.override:
+                        self._add_plugin_route(app, plugin_name, route)
+                
             except Exception as e:
                 l.error(f'Failed to setup routes for plugin {plugin_name}: {e}')
+        
+        # 第二阶段：处理覆盖路由
+        for plugin_name, plugin in self.plugins.items():
+            try:
+                for route in plugin.get_routes(override_only=True):
+                    self._add_plugin_route(app, plugin_name, route)
+                
+            except Exception as e:
+                l.error(f'Failed to setup override routes for plugin {plugin_name}: {e}')
     
     def apply_response_modifiers(self, request: Request, response: Response, endpoint: str) -> Response:
         """
@@ -290,6 +408,12 @@ class PluginManager:
                 if name != plugin_name
             ]
             
+            # 移除覆盖记录
+            self._overridden_routes = {
+                route_key: pname for route_key, pname in self._overridden_routes.items()
+                if pname != plugin_name
+            }
+            
             del self.plugins[plugin_name]
             del self.metadata[plugin_name]
             
@@ -326,6 +450,10 @@ class PluginManager:
             'enabled': meta.enabled,
             'dependencies': meta.dependencies
         }
+    
+    def get_overridden_routes(self) -> Dict[str, str]:
+        """获取被覆盖的路由映射 (path:method -> plugin_name)"""
+        return self._overridden_routes.copy()
 
 
 # 全局插件管理器实例
