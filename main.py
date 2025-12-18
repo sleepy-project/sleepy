@@ -340,6 +340,11 @@ class AuthTokensResponse(BaseModel):
     type: str | None = None
 
 
+class AuthTokenCheckResponse(BaseModel):
+    expires_at: float | None = None
+    type: str | None = None
+
+
 def _hash_sha256(value: str) -> str:
     return sha256(value.encode('utf-8', errors='xmlcharrefreplace')).hexdigest()
 
@@ -547,7 +552,8 @@ class TokenDep:
         allowed_token_types: tuple[str, ...] | None = None,
         *,
         throw: bool = True,
-        allowed_login_types: tuple[str, ...] | None = None
+        allowed_login_types: tuple[str, ...] | None = None,
+        device_id: str | None = None
     ):
         self.allowed_token_types = allowed_token_types or (AUTH_ACCESS_PREFIX,)
         if allowed_login_types and not DEV_LOGIN_ALLOWED:
@@ -555,6 +561,7 @@ class TokenDep:
         else:
             self.allowed_login_types = allowed_login_types
         self.throw = throw
+        self.device_id = device_id
 
     def __call__(
         self,
@@ -587,6 +594,23 @@ class TokenDep:
                 if self.allowed_login_types and login_type not in self.allowed_login_types:
                     l.debug(f'Token login type {login_type} is not allowed in {self.allowed_login_types}')
                 else:
+                    if self.device_id:
+                        if login_type in ('web', 'dev'):
+                            pass
+                        elif login_type == 'device':
+                            token_device_hash = _token_device_hash(info.type)
+                            expected_device_hash = _device_hash(self.device_id)
+                            if token_device_hash != expected_device_hash:
+                                l.debug(f'Device token cannot access device {self.device_id}')
+                                if self.throw:
+                                    raise e.APIUnsuccessful(hc.HTTP_403_FORBIDDEN, 'Unauthorized for this device')
+                                return None
+                        else:
+                            l.debug(f'Unknown login type {login_type} for device access')
+                            if self.throw:
+                                raise e.APIUnsuccessful(hc.HTTP_403_FORBIDDEN, 'Invalid token type')
+                            return None
+                    
                     info.last_active = now_ts
                     sess.add(info)
                     sess.commit()
@@ -599,6 +623,21 @@ class TokenDep:
         if self.throw:
             raise e.APIUnsuccessful(hc.HTTP_401_UNAUTHORIZED, 'Invalid token')
         return None
+
+
+@auth_router.get('/check', response_model=AuthTokenCheckResponse, name='Check token validity')
+async def auth_check(
+    token: m.TokenData | None = Security(TokenDep(allowed_token_types=(AUTH_ACCESS_PREFIX,), throw=False))
+):
+    if not token:
+        raise e.APIUnsuccessful(hc.HTTP_403_FORBIDDEN, 'Invalid token')
+    expires = token.expire if token.expire and token.expire > 0 else None
+    token_type = _token_login_type(token.type)
+    return {
+        'expires_at': expires,
+        'type': token_type
+    }
+
 # endregion auth
 
 # region routes
@@ -776,9 +815,49 @@ async def events(sess: SessionDep):
 
 
 @app.websocket('/api/devices/{device_id}')
-async def websocket_device(ws: WebSocket):
+async def websocket_device(ws: WebSocket, device_id: str):
+    """
+    设备 WebSocket 端点
+    允许: web, dev, 以及该设备自己的 device token
+    """
+
+    token_value = ws.query_params.get('token') or ws.headers.get('x-sleepy-token')
+    
+    if not token_value:
+        l.warning(f'WebSocket connection to device {device_id} rejected: missing token')
+        await ws.close(code=1008, reason='Missing token')
+        return
+    
+    with Session(engine) as sess:
+        try:
+            token_dep = TokenDep(
+                allowed_login_types=('web', 'dev', 'device'),
+                device_id=device_id,
+                throw=True
+            )
+
+            token_info = token_dep(
+                sess=sess,
+                token_value=token_value,
+                authorization=None
+            )
+            
+            if not token_info:
+                l.warning(f'WebSocket connection to device {device_id} rejected: invalid token')
+                await ws.close(code=1008, reason='Invalid token')
+                return
+            
+            login_type = _token_login_type(token_info.type)
+            l.info(f'WebSocket connected for device {device_id} with {login_type} token')
+            
+        except e.APIUnsuccessful as ex:
+            l.warning(f'WebSocket connection to device {device_id} rejected: {ex.message}')
+            await ws.close(code=1008, reason=ex.message)
+            return
+    
     try:
         await ws.accept()
+        
         while True:
             data: dict = await ws.receive_json()
             # 解析字段
@@ -789,11 +868,11 @@ async def websocket_device(ws: WebSocket):
             using_bool = str(using) == '1' or using is True
             # 数据库操作
             with Session(engine) as sess:
-                device = sess.exec(select(m.DeviceData).where(m.DeviceData.id == ws.path_params['device_id'])).first()
+                device = sess.exec(select(m.DeviceData).where(m.DeviceData.id == device_id)).first()
                 if not device:
                     device = m.DeviceData(
-                        id=ws.path_params['device_id'],
-                        name=ws.path_params['device_id'],
+                        id=device_id,
+                        name=device_id,
                         status=str(status) if status is not None else '',
                         using=using_bool,
                         fields=fields,
@@ -809,14 +888,20 @@ async def websocket_device(ws: WebSocket):
             # 返回结果
             await ws.send_json({
                 'ok': True,
-                'id': ws.path_params['device_id'],
+                'id': device_id,
                 'status': status,
                 'using': using,
                 'fields': fields
             })
-
+    
     except WebSocketDisconnect:
-        pass
+        l.info(f'WebSocket disconnected for device {device_id}')
+    except Exception as ex:
+        l.error(f'WebSocket error for device {device_id}: {ex}')
+        try:
+            await ws.close(code=1011, reason='Internal error')
+        except:
+            pass
 
 
 @app.websocket('/api/ws')
@@ -902,7 +987,11 @@ class SetStatusRequest(BaseModel):
 
 
 @status_router.post('/', status_code=hc.HTTP_204_NO_CONTENT)
-async def set_status(sess: SessionDep, req: SetStatusRequest):
+async def set_status(
+    sess: SessionDep,
+    req: SetStatusRequest,
+    _: m.TokenData = Security(TokenDep(allowed_login_types=('web', 'dev')))
+):
     meta = sess.exec(select(m.Metadata)).first()
     if not meta:
         raise e.APIUnsuccessful(hc.HTTP_500_INTERNAL_SERVER_ERROR, 'Cannot update metadata')
@@ -995,12 +1084,15 @@ async def create_device(
     }
 
 
-@devices_router.put('/{device_id}', status_code=hc.HTTP_204_NO_CONTENT, name='Create or update a device')
+@devices_router.put('/{device_id}', status_code=hc.HTTP_204_NO_CONTENT, name='Update a device')
 async def update_device(
     sess: SessionDep,
     device_id: str,
     req: UpdateDeviceRequest,
-    _: m.TokenData = Security(TokenDep(allowed_login_types=('web', 'dev')))
+    _: m.TokenData = Security(TokenDep(
+        allowed_login_types=('web', 'dev', 'device'),
+        device_id=device_id
+    ))
 ):
     device = sess.get(m.DeviceData, device_id)
     if device:
@@ -1031,7 +1123,11 @@ async def update_device(
 
 
 @devices_router.delete('/{device_id}', status_code=hc.HTTP_204_NO_CONTENT)
-async def delete_device(sess: SessionDep, device_id: str):
+async def delete_device(
+    sess: SessionDep,
+    device_id: str,
+    _: m.TokenData = Security(TokenDep(allowed_login_types=('web', 'dev')))
+):
     device = sess.get(m.DeviceData, device_id)
     if device:
         device_hash = _device_hash(device.id)
@@ -1058,7 +1154,10 @@ async def get_devices(sess: SessionDep):
 
 
 @devices_router.delete('/', status_code=hc.HTTP_204_NO_CONTENT)
-async def clear_devices(sess: SessionDep):
+async def clear_devices(
+    sess: SessionDep,
+    _: m.TokenData = Security(TokenDep(allowed_login_types=('web', 'dev')))
+):
     devices = sess.exec(select(m.DeviceData)).all()
     for d in devices:
         _clear_device_tokens(sess, _device_hash(d.id))
