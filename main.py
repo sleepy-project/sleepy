@@ -33,6 +33,7 @@ import errors as e
 import models as m
 import utils as u
 from utils import cnen as ce
+from plugin import plugin_manager
 
 # region init
 
@@ -144,7 +145,27 @@ async def lifespan(app: FastAPI):
         l.info(f'Saving logs to {c.log.file}')
     # create db
     create_db_and_tables()
+
+    l.info('Loading Plugins')
+    try:
+        plugin_manager.load_all_plugins()
+        plugin_manager.setup_plugin_routes(app)
+        loaded = plugin_manager.get_loaded_plugins()
+        if loaded:
+            l.info(f'Successfully loaded {len(loaded)} plugin(s): {", ".join(loaded)}')
+        else:
+            l.info('No plugins loaded')
+    except Exception as ex:
+        l.error(f'Error loading plugins: {ex}')
+    
     yield
+    
+    l.info('Unloading Plugins')
+    for plugin_name in list(plugin_manager.get_loaded_plugins()):
+        try:
+            plugin_manager.unload_plugin(plugin_name)
+        except Exception as ex:
+            l.error(f'Error unloading plugin {plugin_name}: {ex}')
 
 app = FastAPI(
     title='Sleepy Backend',
@@ -153,7 +174,6 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None
 )
-
 
 @app.middleware('http')
 async def log_requests(request: Request, call_next: t.Callable):
@@ -179,6 +199,19 @@ async def log_requests(request: Request, call_next: t.Callable):
         resp.headers['X-Sleepy-Request-Id'] = request_id
         reqid.reset(token)
         return resp
+
+@app.middleware('http')
+async def plugin_response_middleware(request: Request, call_next: t.Callable):
+    response = await call_next(request)
+    
+    if plugin_manager.get_loaded_plugins():
+        response = plugin_manager.apply_response_modifiers(
+            request,
+            response,
+            request.url.path
+        )
+    
+    return response
 
 # endregion app-context
 
@@ -1089,11 +1122,15 @@ async def update_device(
     sess: SessionDep,
     device_id: str,
     req: UpdateDeviceRequest,
-    _: m.TokenData = Security(TokenDep(
+    token_value: t.Annotated[str | None, Security(sleepy_token_header)] = None,
+    authorization: t.Annotated[str | None, Header(include_in_schema=False)] = None
+):
+
+    TokenDep(
         allowed_login_types=('web', 'dev', 'device'),
         device_id=device_id
-    ))
-):
+    )(sess, token_value, authorization)
+
     device = sess.get(m.DeviceData, device_id)
     if device:
         updated = {}
