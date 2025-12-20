@@ -31,7 +31,7 @@ class AuthSecret(SQLModel, table=True):
     '''
     鉴权密钥（沿用历史表结构）
     '''
-    __tablename__ = 'userdata'
+    __tablename__: str = 'userdata'
     username: str = Field(default='__sleepy__', primary_key=True)
     password: bytes = Field()  # 2x hashed (sha256 + salt)
     salt: bytes = Field()

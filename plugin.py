@@ -21,7 +21,7 @@ class PluginMetadata:
     description: str = ""
     author: str = ""
     enabled: bool = True
-    dependencies: List[str] = None
+    dependencies: List[str] | None = None
     
     def __post_init__(self):
         if self.dependencies is None:
@@ -50,7 +50,7 @@ class PluginBase:
         self,
         path: str,
         endpoint: Callable,
-        methods: List[str] = None,
+        methods: List[str] | None = None,
         override: bool = False,
         **kwargs
     ):
@@ -191,7 +191,7 @@ class PluginManager:
             return False
         
         # 检查依赖
-        for dep in metadata.dependencies:
+        for dep in metadata.dependencies or []:
             if dep not in self.plugins:
                 l.error(f'Plugin {plugin_name} depends on {dep}, but it is not loaded')
                 return False
@@ -268,7 +268,7 @@ class PluginManager:
                     continue
                 
                 # 检查依赖是否已加载
-                deps_loaded = all(dep in loaded for dep in metadata.dependencies)
+                deps_loaded = all(dep in loaded for dep in metadata.dependencies) if metadata.dependencies else True
                 
                 if deps_loaded:
                     if self.load_plugin(plugin_name):
@@ -292,12 +292,12 @@ class PluginManager:
         routes_to_remove = []
         
         for route in app.routes:
-            if hasattr(route, 'path') and route.path == path:
+            if hasattr(route, 'path') and route.path == path: # pyright: ignore[reportAttributeAccessIssue]
                 if hasattr(route, 'methods'):
                     # 检查是否有方法交集
-                    if any(method in route.methods for method in methods):
+                    if any(method in route.methods for method in methods): # pyright: ignore[reportAttributeAccessIssue]
                         routes_to_remove.append(route)
-                        l.debug(f'Marking route for removal: {route.path} {route.methods}')
+                        l.debug(f'Marking route for removal: {route.path} {route.methods}') # pyright: ignore[reportAttributeAccessIssue]
         
         for route in routes_to_remove:
             app.routes.remove(route)

@@ -3,5 +3,6 @@
     "autopep8.args": [
         "--ignore",
         "E402,E501"
-    ]
+    ],
+    "python.analysis.typeCheckingMode": "basic"
 }

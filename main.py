@@ -462,7 +462,7 @@ def _create_token(
 
 def _clear_device_tokens(sess: Session, device_hash: str):
     def _tokens_with_prefix(prefix: str) -> list[m.TokenData]:
-        return sess.exec(select(m.TokenData).where(m.TokenData.type.like(f'{prefix}:%'))).all()
+        return sess.exec(select(m.TokenData).where(m.TokenData.type.like(f'{prefix}:%'))).all() # @NT FIXME
 
     candidates = _tokens_with_prefix(AUTH_ACCESS_PREFIX) + _tokens_with_prefix(AUTH_REFRESH_PREFIX)
     for tk in candidates:
