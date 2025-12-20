@@ -1,0 +1,10 @@
+[project]
+name = 'example-plugin'
+version = '1.0.0'
+description = "An example Sleepy plugin"
+authors = [{ name = 'Krnl', email = 'nt@siiway.org' }]
+dependencies = []
+
+[tool.sleepy]
+enabled = true
+dependencies = []

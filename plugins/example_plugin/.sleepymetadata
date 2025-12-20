@@ -1,6 +1,0 @@
-name = "example_plugin"
-version = "1.0.0"
-description = "An example Sleepy plugin"
-author = "Krnl"
-enabled = true
-dependencies = []

@@ -139,7 +139,7 @@ async def lifespan(app: FastAPI):
     '''
     # startup log
     l.info(f'{"=" * 15} Application Startup {"=" * 15}')
-    l.info(f'Sleepy Backend version {version_full})')
+    l.info(f'Sleepy Backend version {version_full}')
     l.debug(f'Startup Config: {c}')
     if c.log.file:
         l.info(f'Saving logs to {c.log.file}')
@@ -157,9 +157,9 @@ async def lifespan(app: FastAPI):
             l.info('No plugins loaded')
     except Exception as ex:
         l.error(f'Error loading plugins: {ex}')
-    
+
     yield
-    
+
     l.info('Unloading Plugins')
     for plugin_name in list(plugin_manager.get_loaded_plugins()):
         try:
@@ -174,6 +174,7 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None
 )
+
 
 @app.middleware('http')
 async def log_requests(request: Request, call_next: t.Callable):
@@ -200,17 +201,18 @@ async def log_requests(request: Request, call_next: t.Callable):
         reqid.reset(token)
         return resp
 
+
 @app.middleware('http')
 async def plugin_response_middleware(request: Request, call_next: t.Callable):
     response = await call_next(request)
-    
+
     if plugin_manager.get_loaded_plugins():
         response = plugin_manager.apply_response_modifiers(
             request,
             response,
             request.url.path
         )
-    
+
     return response
 
 # endregion app-context
@@ -462,7 +464,7 @@ def _create_token(
 
 def _clear_device_tokens(sess: Session, device_hash: str):
     def _tokens_with_prefix(prefix: str) -> list[m.TokenData]:
-        return sess.exec(select(m.TokenData).where(m.TokenData.type.like(f'{prefix}:%'))).all() # @NT FIXME
+        return list(sess.exec(select(m.TokenData).where(m.TokenData.type.startswith(f'{prefix}:'))).all())
 
     candidates = _tokens_with_prefix(AUTH_ACCESS_PREFIX) + _tokens_with_prefix(AUTH_REFRESH_PREFIX)
     for tk in candidates:
@@ -643,7 +645,7 @@ class TokenDep:
                             if self.throw:
                                 raise e.APIUnsuccessful(hc.HTTP_403_FORBIDDEN, 'Invalid token type')
                             return None
-                    
+
                     info.last_active = now_ts
                     sess.add(info)
                     sess.commit()
@@ -855,12 +857,12 @@ async def websocket_device(ws: WebSocket, device_id: str):
     """
 
     token_value = ws.query_params.get('token') or ws.headers.get('x-sleepy-token')
-    
+
     if not token_value:
         l.warning(f'WebSocket connection to device {device_id} rejected: missing token')
         await ws.close(code=1008, reason='Missing token')
         return
-    
+
     with Session(engine) as sess:
         try:
             token_dep = TokenDep(
@@ -874,23 +876,23 @@ async def websocket_device(ws: WebSocket, device_id: str):
                 token_value=token_value,
                 authorization=None
             )
-            
+
             if not token_info:
                 l.warning(f'WebSocket connection to device {device_id} rejected: invalid token')
                 await ws.close(code=1008, reason='Invalid token')
                 return
-            
+
             login_type = _token_login_type(token_info.type)
             l.info(f'WebSocket connected for device {device_id} with {login_type} token')
-            
+
         except e.APIUnsuccessful as ex:
             l.warning(f'WebSocket connection to device {device_id} rejected: {ex.message}')
             await ws.close(code=1008, reason=ex.message)
             return
-    
+
     try:
         await ws.accept()
-        
+
         while True:
             data: dict = await ws.receive_json()
             # 解析字段
@@ -926,7 +928,7 @@ async def websocket_device(ws: WebSocket, device_id: str):
                 'using': using,
                 'fields': fields
             })
-    
+
     except WebSocketDisconnect:
         l.info(f'WebSocket disconnected for device {device_id}')
     except Exception as ex:
