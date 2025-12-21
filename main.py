@@ -227,7 +227,7 @@ def api_unsuccessful_handler(e: u.APIUnsuccessful):
     '''
     l.error(f'API Calling Error: {e}')
     evt = p.trigger_event(pl.APIUnsuccessfulEvent(e))
-    if evt.interception:
+    if evt and evt.interception:
         return evt.interception
     return {
         'success': False,
@@ -245,13 +245,13 @@ def error_handler(e: Exception):
     if isinstance(e, HTTPException):
         l.warning(f'HTTP Error: {e}')
         evt = p.trigger_event(pl.HTTPErrorEvent(e))
-        if evt.interception:
+        if evt and evt.interception:
             return evt.interception
         return evt.error
     else:
         l.error(f'Unhandled Error: {e}\n{format_exc()}')
         evt = p.trigger_event(pl.UnhandledErrorEvent(e))
-        if evt.interception:
+        if evt and evt.interception:
             return evt.interception
         return f'Unhandled Error: {evt.error}'
 
@@ -331,7 +331,7 @@ def after_request(resp: flask.Response):
     # --- access log
     l.info(f'[Request] {flask.g.ipstr} | {path} -> {resp.status_code} ({flask.g.perf()}ms)')
     evt = p.trigger_event(pl.AfterRequestHook(resp))
-    if evt.interception:
+    if evt and evt.interception:
         evt.response = flask.Response(evt.interception[0], evt.interception[1])
     evt.response.headers.add('X-Powered-By', 'Sleepy-Project (https://github.com/sleepy-project)')
     evt.response.headers.add('Sleepy-Version', f'{version_str} ({".".join(str(i) for i in version)})')
@@ -389,13 +389,14 @@ def index():
         'more-info': more_info_card
     }
     for name, values in p.index_cards.items():
-        value = ''
+        got_values: list[str] = []
         for v in values:
             if hasattr(v, '__call__'):
-                value += f'{v()}<br/>\n'  # type: ignore - pylance 不太行啊 (?
+                got_values.append(v())  # type: ignore - pylance 不太行啊 (?
             else:
-                value += f'{v}<br/>\n'
-        cards[name] = value
+                got_values.append(v) # type: ignore
+        
+        cards[name] = '<br/>\n'.join(got_values)
 
     # 处理主页注入
     injects: list[str] = []
@@ -407,7 +408,7 @@ def index():
 
     evt = p.trigger_event(pl.IndexAccessEvent(page_title=c.page.title, page_desc=c.page.desc, page_favicon=c.page.favicon, page_background=c.page.background, cards=cards, injects=injects))
 
-    if evt.interception:
+    if evt and evt.interception:
         return evt.interception
 
     # 返回 html
@@ -428,7 +429,7 @@ def favicon():
     重定向 /favicon.ico 到用户自定义的 favicon
     '''
     evt = p.trigger_event(pl.FaviconAccessEvent(c.page.favicon))
-    if evt.interception:
+    if evt and evt.interception:
         return evt.interception
     if evt.favicon_url == '/favicon.ico':
         return serve_public('favicon.ico')
@@ -485,7 +486,7 @@ def metadata():
         'metrics': c.metrics.enabled
     }
     evt = p.trigger_event(pl.MetadataAccessEvent(meta))
-    if evt.interception:
+    if evt and evt.interception:
         return evt.interception
     return evt.metadata
 
@@ -498,7 +499,7 @@ def metrics():
     - Method: **GET**
     '''
     evt = p.trigger_event(pl.MetricsAccessEvent(d.metrics_resp))
-    if evt.interception:
+    if evt and evt.interception:
         return evt.interception
     return evt.metrics_response
 
@@ -591,7 +592,7 @@ def events():
         raise u.APIUnsuccessful(400, 'Invaild Last-Event-ID header, it must be int!')
 
     evt = p.trigger_event(pl.StreamConnectedEvent(last_event_id))
-    if evt.interception:
+    if evt and evt.interception:
         return evt.interception
     ipstr: str = flask.g.ipstr
 
@@ -629,7 +630,7 @@ def set_status():
             new_exists=new_status[0],
             new_status=new_status[1]
         ))
-        if evt.interception:
+        if evt and evt.interception:
             return evt.interception
         status = evt.new_status.id
 
@@ -650,7 +651,7 @@ def get_status_list():
     - Method: **GET**
     '''
     evt = p.trigger_event(pl.StatuslistAccessEvent(c.status.status_list))
-    if evt.interception:
+    if evt and evt.interception:
         return evt.interception
     return {
         'success': True,
@@ -688,7 +689,7 @@ def device_set():
             status=device_status,
             fields=args
         ))
-        if evt.interception:
+        if evt and evt.interception:
             return evt.interception
 
         d.device_set(
@@ -710,7 +711,7 @@ def device_set():
                 status=req.get('status') or req.get('app_name'),  # 兼容旧版名称
                 fields=req.get('fields') or {}
             ))
-            if evt.interception:
+            if evt and evt.interception:
                 return evt.interception
 
             d.device_set(
@@ -766,7 +767,7 @@ def device_remove():
             fields=None
         ))
 
-    if evt.interception:
+    if evt and evt.interception:
         return evt.interception
 
     d.device_remove(evt.device_id)
@@ -785,7 +786,7 @@ def device_clear():
     - Method: **GET**
     '''
     evt = p.trigger_event(pl.DeviceClearedEvent(d._raw_device_list))
-    if evt.interception:
+    if evt and evt.interception:
         return evt.interception
 
     d.device_clear()
@@ -808,7 +809,7 @@ def device_private_mode():
         raise u.APIUnsuccessful(400, '\'private\' arg must be boolean')
     elif not private == d.private_mode:
         evt = p.trigger_event(pl.PrivateModeChangedEvent(d.private_mode, private))
-        if evt.interception:
+        if evt and evt.interception:
             return evt.interception
 
         d.private_mode = evt.new_status

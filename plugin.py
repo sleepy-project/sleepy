@@ -411,7 +411,7 @@ class Plugin:
         # 初始化 & 注册插件
         Plugin._registry[self.name] = self
 
-        # 加载配置)
+        # 加载配置
         if not config:
             # 1. None -> raw
             self.config = PluginInit.instance.c.plugin.get(self.name, {})
