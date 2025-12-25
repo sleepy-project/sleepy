@@ -394,8 +394,8 @@ def index():
             if hasattr(v, '__call__'):
                 got_values.append(v())  # type: ignore - pylance 不太行啊 (?
             else:
-                got_values.append(v) # type: ignore
-        
+                got_values.append(v)  # type: ignore
+
         cards[name] = '<br/>\n'.join(got_values)
 
     # 处理主页注入
@@ -509,10 +509,12 @@ def metrics():
 
 # region routes-status
 
+
 @app.route('/api/status/query')
 @cross_origin(c.main.cors_origins)
 def query_route():
     return query()
+
 
 def query():
     '''
@@ -931,18 +933,6 @@ def verify_secret():
         'code': 'OK',
         'message': 'Secret verified'
     }
-
-# endregion routes-panel
-
-# if c.util.steam_enabled:
-#     @app.route('/steam-iframe')
-#     def steam():
-#         return flask.render_template(
-#             'steam-iframe.html',
-#             c=c,
-#             steamids=c.util.steam_ids,
-#             steam_refresh_interval=c.util.steam_refresh_interval
-#         )
 
 
 @app.route('/<path:path_name>')

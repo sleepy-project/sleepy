@@ -6,6 +6,9 @@
 
 断开后可能稍有延迟 (须 heartbeat 检测)
 
+> [!WARNING]
+> Vercel 部署不支持 SSE, 故在 Vercel 部署的实例上本插件将无效.
+
 ## 配置
 
 ```yaml

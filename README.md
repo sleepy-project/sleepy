@@ -15,6 +15,7 @@
 - [x] 美观的展示页面 [见 [Preview](#preview)]
 - [x] 开放的 Query / Metrics [接口](./doc/api.md), 方便统计
 - [x] 支持 HTTPS (需要自行配置 SSL 证书)
+- [x] 强大的插件系统
 
 > [!TIP]
 > 如有 Bug / 建议, 可发 issue (**[Bug][link-issue-bug]** / **[Feature][link-issue-feature]**) 或选择下面的联系方式 *(注明来意)*.
@@ -27,16 +28,19 @@
 - [QQ][link-qq]
 - [Telegram][link-tg]
 
-预计将在 1-2 个月内完成 *(希望吧)*
+预计将在半年内完成 *(希望吧)*
 
-如仍需使用此分支, 请仔细阅读本仓库的文档, 或找上面的 DeepWiki Ask.
+如仍需使用此分支, 请仔细阅读文档, 或找上面的 DeepWiki Ask.
 
 > [!TIP]
-> 以及 V4 API (即不带 `/api` 前缀的 API) 兼容**默认启用**, **文档: [`plugins/v4_compatible/README.md`](./plugins/v4_compatible/README.md)**
+> 默认启用的插件:
+> - [`v4_compatible`](./plugins/v4_compatible/) - v4 API *(不带 `/api`)* 兼容
+> - [`theme_detect`](./plugins/theme_detect/) - 在用户首次访问时检测系统主题
+> - [`online_count`](./plugins/online_count/) - 展示同时在线的用户数量 *(Vercel 不可用)*
 
 ### Preview
 
-演示站: [sleepy.wyf9.top](https://sleepy.wyf9.top)
+<!-- 演示站: [sleepy.wyf9.top](https://sleepy.wyf9.top) -->
 
 **开放预览站**: [sleepy-preview.wyf9.top](https://sleepy-preview.wyf9.top)
 
@@ -65,15 +69,11 @@
 > [!IMPORTANT]
 > 每个客户端的标题可以 **点击跳转最新文件**, 不要使用固定 commit 的链接, 否则无法获取最新文件
 
-## API
+## 文档
 
-详细的 API 文档见 [doc/api.md](./doc/api.md).
+In Progress... (使用 / 插件开发 / 客户端)
 
-<!-- ## 插件系统
-
-(普通用户看这个) **[doc/plugin.md](./doc/plugin.md)**
-
-(插件开发看这个) **[doc/plugin-dev/README.md](./doc/plugin-dev/README.md)** -->
+*For SiiWay Members: <https://github.com/siiway/internal/issues/6>*
 
 ## Star History
 
@@ -96,7 +96,7 @@
 
 本项目灵感由 Bilibili UP [@WinMEMZ](https://space.bilibili.com/417031122) 而来: **[site](https://maao.cc/sleepy/)** / **[blog](https://www.maodream.com/archives/192/)** / **[repo: `maoawa/sleepy`](https://github.com/maoawa/sleepy)**, 并~~部分借鉴~~使用了前端代码, 在此十分感谢。
 
-[`templates/steam-iframe.html`](./templates/steam-iframe.html) 来自 repo **[gamer2810/steam-miniprofile](https://github.com/gamer2810/steam-miniprofile).**
+<!-- [`templates/steam-iframe.html`](./templates/steam-iframe.html) 来自 repo **[gamer2810/steam-miniprofile](https://github.com/gamer2810/steam-miniprofile).** -->
 
 ---
 
