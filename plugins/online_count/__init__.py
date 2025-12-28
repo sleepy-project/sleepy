@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from utils import get_path
 import plugin as pl
 
+name = __name__.split('.')[-1]
 l = getLogger(__name__)
 
 
@@ -18,7 +19,7 @@ class CountConfig(BaseModel):
 
 
 p = pl.Plugin(
-    name='online_count',
+    name=name,
     require_version_min=(5, 0, 0),
     require_version_max=(6, 0, 0),
     config=CountConfig
@@ -44,24 +45,27 @@ class Stats:
 
 
 stats = Stats()
+loaded = False
 
 # ==================== 初始化 & 数据持久化 ====================
 
 
 def init():
     global stats
+    global loaded
 
     # 加载前端 JS（负责点击刷新）
     try:
-        path = get_path('plugins/online_count/inject.js')
+        path = get_path(f'plugins/{name}/inject.js')
         with open(path, 'r', encoding='utf-8') as f:
             js_content = f.read()
-        p.add_index_inject(f'<script>{
+        p.add_index_inject(f'''<script>{
             js_content.replace('114514', str(c.refresh))
-        }</script>')
-        l.info('Online Count plugin: inject.js loaded')
+        }</script>''')
+        l.debug('inject.js loaded')
+        loaded = True
     except Exception as e:
-        l.error(f'无法加载 inject.js: {e}')
+        l.error(f'Cannot load inject.js: {e}')
 
     # 恢复持久化数据
     data = p.data
@@ -141,7 +145,7 @@ def index_card():
     </a>
     <span id="update-status" style="margin-left:10px; font-size:0.8em; color:#666;"></span>
 </div>
-'''[1:-1]
+'''[1:-1] if loaded else None
 
 # ==================== 手动刷新 API ====================
 

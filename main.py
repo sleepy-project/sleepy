@@ -392,11 +392,21 @@ def index():
         got_values: list[str] = []
         for v in values:
             if hasattr(v, '__call__'):
-                got_values.append(v())  # type: ignore - pylance 不太行啊 (?
-            else:
+                content = v()  # type: ignore
+                if content:
+                    got_values.append(content)
+            elif v:
                 got_values.append(v)  # type: ignore
 
-        cards[name] = '<br/>\n'.join(got_values)
+        if got_values:
+            if name == 'main':
+                cards[name] = f'{main_card}<br/>\n' + '<br/>\n'.join(got_values)
+            elif name == 'more-info':
+                cards[name] = f'{more_info_card}<br/>\n' + '<br/>\n'.join(got_values)
+            else:
+                cards[name] = '<br/>\n'.join(got_values)
+        else:
+            l.warning(f'Card {name} has no content, it will not be shown.')
 
     # 处理主页注入
     injects: list[str] = []

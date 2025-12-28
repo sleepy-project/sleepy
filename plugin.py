@@ -589,15 +589,17 @@ class Plugin:
     def add_index_card(self, card_id: str, content: str | t.Callable):
         '''
         注册 index.html 卡片 (如已有则追加到末尾)
+        - 如返回为空则无效, 不会显示在前端
 
         :param card_id: 用于区分不同卡片
-        :param content: 卡片 HTML 内容
+        :param content: 卡片 HTML 内容 / 其处理函数
         '''
         PluginInit.instance.index_cards[card_id].append(content)
 
     def index_card(self, card_id: str):
         '''
         [装饰器] 注册 index.html 卡片 (如已有则追加到末尾)
+        - 如返回为空则无效, 不会显示在前端
 
         :param card_id: 用于区分不同卡片
         '''
@@ -618,7 +620,7 @@ class Plugin:
         注册管理面板卡片 (唯一, 不可追加)
 
         :param card_id: 用于区分不同卡片
-        :param content: 卡片 HTML 内容
+        :param content: 卡片 HTML 内容 / 其处理函数
         '''
         PluginInit.instance.panel_cards[card_id] = {
             'title': card_title,

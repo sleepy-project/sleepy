@@ -15,7 +15,7 @@ class ThemeDetectConfig(BaseModel):
 l = getLogger(__name__)
 
 p = pl.Plugin(
-    name='theme_detect',
+    name=__name__,
     require_version_min=(5, 0, 0),
     require_version_max=(6, 0, 0),
     config=ThemeDetectConfig

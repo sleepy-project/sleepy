@@ -29,7 +29,7 @@ class V4Config(BaseModel):
 
 
 p = pl.Plugin(
-    name='v4_compatible',
+    name=__name__,
     require_version_min=(5, 0, 0),
     require_version_max=(6, 0, 0),
     config=V4Config
