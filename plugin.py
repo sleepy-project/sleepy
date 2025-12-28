@@ -820,9 +820,12 @@ class PluginInit:
         '''
         for e in self.events[event.id]:
             try:
-                event = e(event=event, request=event.request)
-                if event and event.interception:
-                    break
+                got_event = e(event=event, request=event.request)
+                if got_event:
+                    if got_event.interception:
+                        break
+                    else:
+                        event = got_event
             except Exception as err:
                 l.warning(f'[plugin] Error when trigging event {event.id} with function {e}: {err}\n{format_exc()}')
         return event

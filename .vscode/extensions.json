@@ -1,0 +1,10 @@
+{
+    "recommendations": [
+        "ms-python.autopep8",
+        "tamasfe.even-better-toml",
+        "ms-python.vscode-pylance",
+        "ms-python.python",
+        "rangav.vscode-thunder-client",
+        "redhat.vscode-yaml"
+    ]
+}

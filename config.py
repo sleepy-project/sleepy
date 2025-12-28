@@ -25,7 +25,9 @@ class Config:
         perf = u.perf_counter()  # 性能计数器
 
         # ===== prepare .env =====
-        load_dotenv(dotenv_path=u.get_path('data/.env'))
+        env_path = u.get_path('data/.env')
+        env_path = env_path if os.path.exists(env_path) else u.get_path('.env')
+        load_dotenv(dotenv_path=env_path)
         config_env = {}
         try:
             # 筛选有效配置项
@@ -48,33 +50,39 @@ class Config:
 
         # ===== prepare config.yaml =====
         config_yaml = {}
+        yaml_path = u.get_path('data/config.yaml')
+        yaml_path = yaml_path if os.path.exists(yaml_path) else u.get_path('config.yaml')
         try:
-            if os.path.exists(u.get_path('data/config.yaml')):
-                with open(u.get_path('data/config.yaml'), 'r', encoding='utf-8') as f:
+            if os.path.exists(yaml_path):
+                with open(yaml_path, 'r', encoding='utf-8') as f:
                     config_yaml = yaml_load(f)
                     f.close()
         except Exception as e:
-            l.warning(f'Error when loading data/config.yaml: {e}')
+            l.warning(f'Error when loading {yaml_path}: {e}')
 
         # ===== prepare config.toml =====
         config_toml = {}
+        toml_path = u.get_path('data/config.toml')
+        toml_path = toml_path if os.path.exists(toml_path) else u.get_path('config.toml')
         try:
-            if os.path.exists(u.get_path('data/config.toml')):
-                with open(u.get_path('data/config.toml'), 'r', encoding='utf-8') as f:
+            if os.path.exists(toml_path):
+                with open(toml_path, 'r', encoding='utf-8') as f:
                     config_toml = toml_load(f)
                     f.close()
         except Exception as e:
-            l.warning(f'Error when loading data/config.toml: {e}')
+            l.warning(f'Error when loading {toml_path}: {e}')
 
         # ===== prepare config.json =====
         config_json = {}
+        json_path = u.get_path('data/config.json')
+        json_path = json_path if os.path.exists(json_path) else u.get_path('config.json')
         try:
-            if os.path.exists(u.get_path('data/config.json')):
-                with open(u.get_path('data/config.json'), 'r', encoding='utf-8') as f:
+            if os.path.exists(json_path):
+                with open(json_path, 'r', encoding='utf-8') as f:
                     config_json = json_load(f)
                     f.close()
         except Exception as e:
-            l.warning(f'Error when loading data/config.json: {e}')
+            l.warning(f'Error when loading {json_path}: {e}')
 
         # ===== mix sources =====
         try:
