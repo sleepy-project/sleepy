@@ -33,6 +33,12 @@ github = "https://github.com/sleepy-project/sleepy"
 releasenotes = "https://github.com/sleepy-project/sleepy/releases"
 issues = "https://github.com/sleepy-project/sleepy/issues"
 
+# better for both CN & EU users
+[[tool.uv.index]]
+name = "siiway-mirror"
+url = "https://pypi-mirror.siiway.top/pypi/simple/"
+default = true
+
 [tool.sleepy-plugin]
 version = [5, 3, 0]
 version-str = "5.3-release-20251221"
