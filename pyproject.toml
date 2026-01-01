@@ -33,7 +33,8 @@ github = "https://github.com/sleepy-project/sleepy"
 releasenotes = "https://github.com/sleepy-project/sleepy/releases"
 issues = "https://github.com/sleepy-project/sleepy/issues"
 
-# better for both CN & EU users
+# better for both EU & CN users...?
+# feel free to disable if meet any problem about it
 [[tool.uv.index]]
 name = "siiway-mirror"
 url = "https://pypi-mirror.siiway.top/pypi/simple/"

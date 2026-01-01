@@ -12,7 +12,7 @@ body:
         查看 commit id: 执行命令 `git rev-parse HEAD` <br/>
         *The version you are using (version number or commit id).* <br/>
         *Check commit id: Run the command `git rev-parse HEAD`*
-      placeholder: "e.g., 1.0.0 or abcdef1"
+      placeholder: "e.g., 5.3 or 5080b7bdd4ab36af689682e56950588f24c18a45"
     validations:
       required: true
   - type: textarea

@@ -43,7 +43,7 @@ Import module Failed!
  * Please make sure you installed all dependencies in requirements.txt
  * If you don't know how, see doc/deploy.md
  * If you believe that's our fault, report to us: https://sleepy.wss.moe/bug
- * And provide the logs (below) to us:
+ * And provide the logs (below):
 '''[1:-1], flush=True)
     raise
 
