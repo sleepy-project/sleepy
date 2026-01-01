@@ -35,11 +35,9 @@ c: LanternConfig = p.config
 def init():
     try:
         # load static files
-        html_path = get_path(f'plugins/{name}/inject.html')
-        css_path = get_path(f'plugins/{name}/inject.css')
-        with open(html_path, 'r', encoding='utf-8') as f:
+        with open(get_path(f'plugins/{name}/inject.html'), 'r', encoding='utf-8') as f:
             html = f.read()
-        with open(css_path, 'r', encoding='utf-8') as f:
+        with open(get_path(f'plugins/{name}/inject.css'), 'r', encoding='utf-8') as f:
             css = f.read()
 
         # replace chars

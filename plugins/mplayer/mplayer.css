@@ -1,0 +1,301 @@
+/* 音乐播放器CSS Start */
+:root {
+    --bg-color: rgba(255, 255, 255, 0.95);
+    --text-color: #333;
+    --secondary-color: #666;
+    --control-bg: rgba(0, 0, 0, 0.1);
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    --border-color: rgba(127, 127, 127, 0.1);
+    --transition-duration: 0.3s;
+    --slide-distance: 320px;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg-color: rgba(30, 30, 30, 0.95);
+        --text-color: #fff;
+        --secondary-color: #aaa;
+        --control-bg: rgba(255, 255, 255, 0.1);
+        --shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+}
+
+/* 播放器容器 */
+#mplayer_player-container {
+    position: fixed;
+    left: 0;
+    bottom: 20px;
+    z-index: 1000;
+    display: flex;
+    align-items: flex-end;
+    transition: var(--transition-duration);
+}
+
+/* 主播放器 */
+#mplayer_player {
+    width: 320px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    backdrop-filter: blur(10px);
+    border-radius: 15px;
+    box-shadow: var(--shadow);
+    padding: 15px;
+    font-family: "Segoe UI", sans-serif;
+    transition: transform var(--transition-duration),
+        opacity var(--transition-duration);
+    transform: translateX(calc(-1 * var(--slide-distance)));
+    opacity: 0;
+    pointer-events: none;
+    border: 1px solid var(--border-color);
+}
+
+#mplayer_player.mplayer-active {
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* 歌曲列表 */
+.mplayer-song-list {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 0;
+    right: 0;
+    max-height: 50vh;
+    overflow-y: auto;
+    background: var(--bg-color);
+    border-radius: 15px;
+    box-shadow: var(--shadow);
+    display: none;
+    z-index: 1001;
+    padding: 8px 0;
+}
+
+.mplayer-song-list.mplayer-show {
+    display: block;
+}
+
+.mplayer-song-item {
+    padding: 12px;
+    cursor: pointer;
+    transition: background var(--transition-duration);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.mplayer-song-item:hover,
+.mplayer-song-item.mplayer-active {
+    background: var(--control-bg);
+}
+
+.mplayer-song-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.mplayer-song-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mplayer-song-artist {
+    font-size: 0.8em;
+    color: var(--secondary-color);
+}
+
+/* 折叠状态 */
+#mplayer_player.mplayer-collapsed {
+    transform: translateX(calc(-1 * var(--slide-distance)));
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* 展开/收起按钮 */
+#mplayer_toggle-btn {
+    opacity: 0.6;
+    width: 40px;
+    height: 40px;
+    background: var(--bg-color);
+    border-radius: 50%;
+    display: flex;
+    position: fixed;
+    left: 20px;
+    bottom: 20px;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    transition: transform var(--transition-duration);
+    margin-left: 10px;
+}
+
+#mplayer_toggle-btn:hover {
+    transform: scale(1.1);
+}
+
+/* 封面样式 */
+.mplayer-cover {
+    width: 60px;
+    height: 60px;
+    border-radius: 8px;
+    margin-right: 15px;
+    animation: rotate 20s linear infinite;
+    animation-play-state: paused;
+}
+
+@keyframes rotate {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.mplayer-playing .mplayer-cover {
+    animation-play-state: running;
+}
+
+/* 歌曲信息 */
+.mplayer-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.mplayer-song-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mplayer-artist {
+    font-size: 0.9em;
+    color: var(--secondary-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 控制栏 */
+.mplayer-controls {
+    margin-top: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* 输入区域 */
+.mplayer-playlist-input {
+    transition: var(--transition-duration);
+    display: flex;
+    gap: 10px;
+}
+
+.mplayer-playlist-input.mplayer-hidden {
+    opacity: 0;
+    pointer-events: none;
+    height: 0;
+    margin: 0;
+    padding: 0;
+}
+
+#mplayer_playlistId {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--control-bg);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-color);
+}
+
+/* 加载动画 */
+.mplayer-loader {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: none;
+    width: 20px;
+    height: 20px;
+    border: 3px solid var(--control-bg);
+    border-top: 3px solid var(--text-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    100% {
+        transform: translate(-50%, -50%) rotate(360deg);
+    }
+}
+
+.mplayer-return-input {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: var(--control-bg);
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform var(--transition-duration);
+}
+
+.mplayer-return-input:hover {
+    transform: scale(1.1);
+}
+
+/* 按钮内 SVG 图标通用样式 */
+.mplayer-btn-icon {
+    width: 1.2em;
+    /* 略大于字体大小，看起来更饱满 */
+    height: 1.2em;
+    vertical-align: middle;
+    fill: currentColor;
+    /* 继承按钮文字颜色 */
+    flex-shrink: 0;
+}
+
+/* added */
+
+/* 特别小的按钮（如返回按钮 28px） */
+.mplayer-return-input .mplayer-btn-icon {
+    width: 1em;
+    height: 1em;
+}
+
+/* 控制按钮（prev/play/next）稍大一些 */
+.mplayer-controls button .mplayer-btn-icon {
+    width: 1.4em;
+    height: 1.4em;
+}
+
+/* 加载歌单按钮 */
+#mplayer_loadPlaylist .mplayer-btn-icon {
+    width: 1.3em;
+    height: 1.3em;
+}
+
+/* 展开/收起按钮（toggle-btn） */
+#mplayer_toggle-btn .mplayer-btn-icon {
+    width: 1.5em;
+    height: 1.5em;
+}
+
+/* 歌曲列表按钮 */
+#mplayer_showList .mplayer-btn-icon {
+    width: 1.3em;
+    height: 1.3em;
+}
+
+/* 音乐播放器CSS End */

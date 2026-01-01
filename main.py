@@ -37,6 +37,8 @@ try:
     import utils as u
     from data import Data as data_init
     import plugin as pl
+except KeyboardInterrupt:
+    exit(1)
 except:
     print(f'''
 Import module Failed!
