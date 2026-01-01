@@ -13,11 +13,11 @@ services:
     environment: # 环境变量配置
       - sleepy_main_colorful_log=false # 默认禁用彩色日志
       - sleepy_main_secret=your_secret_key_here # (必须更改) secret
-      - SLEEPY_PAGE_NAME=Sleepy # 你的名字
+      - sleepy_page_name=Sleepy User # 你的名字
       # - sleepy_page_learn_more_text=个人主页 # 链接文本
       # - sleepy_page_learn_more_link=https://wyf9.top # 链接地址
       # - sleepy_page_more_text=qwq # 更多信息
-      # 还可添加更多 (见 doc/config.md & models.py)
+      # 还可添加更多 (见 https://sleepy.wss.moe/v5/config)
 
 volumes:
   data:

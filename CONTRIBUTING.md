@@ -24,7 +24,7 @@ version = "5.0-dev-20250621"
 ```
 
 ```toml
-version = "5.0"
+version = "5.0-release-20251230"
 ```
 
 2. 在编写需要鉴权的接口时，一定要注意两个修饰器的顺序:
@@ -41,7 +41,7 @@ def function():
 <details>
 <summary>关于这个 commit 是怎么来的</summary>
 
-[Click Here](https://alist.siiway.top/img/sleepy-25-4-12) *(不保证能访问)*
+*sorry but 我们的 AList 挂了, 不想重新上传*
 
 </details>
 
@@ -50,5 +50,7 @@ def function():
 > - `data/`
 > - `config.yaml`
 > - `config.toml`
+> - `config.json`
 > - `.env`
-> - `data.json`
+> - `*.db`
+> - 总之就是你的配置和数据文件
