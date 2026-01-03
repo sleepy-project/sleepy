@@ -312,7 +312,8 @@ class ConfigModel(BaseModel):
         'v4_compatible', # 默认启用 v4 兼容
         'theme_detect', # 默认启用主题检测
         'online_count', # 默认启用在线人数
-        'hitokoto' # 默认启用一言
+        'hitokoto', # 默认启用一言
+        'font' # 默认启用字体注入
     ]
     '''
     `plugins_enabled`
