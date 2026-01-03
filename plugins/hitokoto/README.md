@@ -14,11 +14,15 @@
 
 ![standalone](https://cb.wss.moe/n0q8xk.png)
 
+- 管理面板卡片:
+
+![panel](https://cb.wss.moe/lgh6l3.png)
+
 ## 配置
 
 ```yaml
 plugin:
   hitokoto:
     standalone: false
-    # 控制是否显示单独卡片 (如为 false 则追加到 more-info 卡片底部)
+    # 控制是否显示单独卡片 (如为 false 则追加到 more-info 卡片底部, 仅适用于主页)
 ```

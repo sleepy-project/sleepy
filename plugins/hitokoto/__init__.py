@@ -10,8 +10,10 @@ from utils import get_path
 name = __name__.split('.')[-1]
 l = getLogger(__name__)
 
+
 class HitokotoConfig(BaseModel):
     standalone: bool = False
+
 
 p = pl.Plugin(
     name=name,
@@ -22,6 +24,7 @@ p = pl.Plugin(
 
 c: HitokotoConfig = p.config
 
+
 def init():
     # 加载前端 JS
     try:
@@ -29,8 +32,9 @@ def init():
         with open(path, 'r', encoding='utf-8') as f:
             js = f.read()
         p.add_index_inject(f'''<script>{js}</script>''')
+        p.add_panel_inject(f'''<script>{js}</script>''')
         l.debug('inject.js loaded')
-        
+
         if c.standalone:
             l.info(f'mode: standalone')
             p.add_index_card('hitokoto', more_info_card)
@@ -38,8 +42,11 @@ def init():
             l.info(f'mode: append to more-info')
             p.add_index_card('more-info', more_info_append)
 
+        p.add_panel_card('hitokoto', '一言', more_info_card)
+
     except Exception as e:
         l.error(f'Cannot load inject.js: {e}')
+
 
 p.init = init
 
