@@ -165,15 +165,6 @@ div p {
   color: red;
 }
 
-#hitokoto {
-  border-radius: 0.5rem;
-  padding: 0.8rem 1rem;
-}
-
-#hitokoto_text {
-  color: rgba(180, 40, 200, 0.9);
-}
-
 .light a,
 .light .awake {
   color: rgb(0, 100, 0);
@@ -217,11 +208,6 @@ div p {
 
 .light a.error {
   color: red !important;
-}
-
-/* Steam Card */
-.steam_card {
-  text-align: center;
 }
 
 /* 控制栏按钮 */

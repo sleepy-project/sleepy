@@ -14,7 +14,7 @@ l = getLogger(__name__)
 
 
 class CountConfig(BaseModel):
-    refresh: int = 150000
+    refresh: int = 20000
     '''前端刷新秒数'''
 
 
