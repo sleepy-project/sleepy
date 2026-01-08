@@ -93,7 +93,7 @@ def save_stats():
         data['today_date'] = stats.today_is
 
 
-def update_peak(global_new: int | None = None, plugin_new: int | None = None):
+def update_peak(global_new: int | None = None):
     global stats
     today = get_today()
 
@@ -112,7 +112,7 @@ def update_peak(global_new: int | None = None, plugin_new: int | None = None):
 
 
 @p.event_handler(pl.StreamConnectedEvent)
-def on_global_connect(event: pl.StreamConnectedEvent, request):
+def on_global_connect(event: pl.StreamConnectedEvent):
     stats.current += 1
     l.info(f'全局在线 +1 → {stats.current}')
     update_peak(global_new=stats.current)
@@ -120,7 +120,7 @@ def on_global_connect(event: pl.StreamConnectedEvent, request):
 
 
 @p.event_handler(pl.StreamDisconnectedEvent)
-def on_global_disconnect(event: pl.StreamDisconnectedEvent, request):
+def on_global_disconnect(event: pl.StreamDisconnectedEvent):
     stats.current = max(0, stats.current - 1)
     l.info(f'全局在线 -1 → {stats.current}')
     update_peak(global_new=stats.current)

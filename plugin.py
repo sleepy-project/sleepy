@@ -1,5 +1,6 @@
 import os
 import importlib
+import inspect
 import typing as t
 from logging import getLogger
 from functools import wraps
@@ -824,14 +825,23 @@ class PluginInit:
         '''
         for e in self.events[event.id]:
             try:
-                got_event = e(event=event, request=event.request)
+                sig = inspect.signature(e)
+                params = sig.parameters
+                kwargs = {}
+                
+                if 'event' in params:
+                    kwargs['event'] = event
+                if 'request' in params:
+                    kwargs['request'] = event.request
+                
+                got_event = e(**kwargs)
                 if got_event:
                     if got_event.interception:
                         break
                     else:
                         event = got_event
             except Exception as err:
-                l.warning(f'[plugin] Error when trigging event {event.id} with function {e}: {err}\n{format_exc()}')
+                l.warning(f'[plugin] Error when trigging event {event.id} with function {e.__name__}: {err}\n{format_exc()}')
         return event
 
 # endregion plugin-init

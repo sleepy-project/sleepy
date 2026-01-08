@@ -15,7 +15,7 @@ class _FontFace(BaseModel):
 
 class FontConfig(BaseModel):
     google_fonts: bool = True
-    family: list[str] = ['Inter', 'sans-serif']
+    family: list[str] | str = ['Inter', 'sans-serif']
     faces: list[_FontFace] = []
     all_html: bool = False
 
@@ -31,7 +31,7 @@ p = pl.Plugin(
 c: FontConfig = p.config
 
 
-def hook(*, event: pl.AfterRequestHook):
+def hook(event: pl.AfterRequestHook):
     if 'html' not in event.response.content_type:
         return event
 
@@ -69,12 +69,13 @@ def init():
         )
 
     # inject css
+    family = ', '.join(f"'{i}'" for i in c.family) if isinstance(c.family, list) else c.family
     injects.append('''
 body {
   font-family: FONTS;
 }
 '''[1:-1]
-        .replace('FONTS', ', '.join(f"'{i}'" for i in c.family))
+        .replace('FONTS', family)
     )
     global fonts_inject
     fonts_inject = f"<style>\n{'\n'.join(injects)}\n</style>"

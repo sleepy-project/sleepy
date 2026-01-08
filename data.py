@@ -658,14 +658,14 @@ class Data:
         if self._c.main.debug:
             return
         now = time()
-        
+
         # 先收集需要删除的键
         expired_keys = []
         for name, (timestamp, f) in self._cache.items():
             if now - timestamp > self._c.main.cache_age:
                 expired_keys.append(name)
                 if f:
-                    f.close()  # 可以提前关闭文件，避免后续 pop 时再判断
+                    f.close()  # 提前关闭文件
 
         # 再统一删除
         for name in expired_keys:

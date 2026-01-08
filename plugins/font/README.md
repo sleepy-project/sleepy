@@ -55,7 +55,7 @@ plugin:
       - family: bbb
         src: https://another.host/path/to/def.woff
         format: woff
-    # 应用的字体 family 列表
+    # 应用的字体 family 列表, 也可为字符串
     family: ['aaa', 'bbb', 'sans-serif']
     # 是否注入到所有 html 返回中
     all_html: false

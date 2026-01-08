@@ -24,7 +24,7 @@ p = pl.Plugin(
 c: ThemeDetectConfig = p.config
 
 @p.event_handler(pl.BeforeRequestHook)
-def on_before_request(event: pl.BeforeRequestHook, request):
+def on_before_request(event: pl.BeforeRequestHook):
     '''
     方案 1 - 检测 prefers-color-scheme 媒体查询（需要客户端支持）
     '''
