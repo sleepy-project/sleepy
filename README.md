@@ -19,6 +19,10 @@
 > [!TIP]
 > 如有 Bug / 建议, 可发 issue (**[Bug][link-issue-bug]** / **[Feature][link-issue-feature]**) 或选择下面的联系方式 *(注明来意)*.
 
+## 文档（Beta）
+
+https://sleepy.wss.moe
+
 ### Working...
 
 我们正在使用 FastAPI 重构此项目, 请关注以下社交平台消息:
