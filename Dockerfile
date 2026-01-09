@@ -4,9 +4,11 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /sleepy
 
-COPY . .
+COPY pyproject.toml uv.lock ./
 
 RUN ["uv", "sync"]
+
+COPY . .
 
 EXPOSE 9010
 
