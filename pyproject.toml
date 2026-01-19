@@ -33,13 +33,18 @@ github = "https://github.com/sleepy-project/sleepy"
 releasenotes = "https://github.com/sleepy-project/sleepy/releases"
 issues = "https://github.com/sleepy-project/sleepy/issues"
 
-# better for both EU & CN users...?
-# feel free to disable if meet any problem about it
+# first try this (CN University)
 [[tool.uv.index]]
-name = "siiway-mirror"
-url = "https://pypi-mirror.siiway.top/pypi/simple/"
+name = "ustc-mirror"
+url = "https://mirrors.ustc.edu.cn/pypi/web/simple/"
 default = true
+
+# second try this (Cloudflare)
+# [[tool.uv.index]]
+# name = "siiway-mirror"
+# url = "https://pypi-mirror.siiway.top/pypi/simple/"
+# default = true
 
 [tool.sleepy-plugin]
 version = [5, 3, 0]
-version-str = "5.3-dev-20260101"
+version-str = "5.3-dev-20260119"
