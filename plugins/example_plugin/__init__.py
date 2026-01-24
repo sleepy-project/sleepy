@@ -27,20 +27,21 @@ class Plugin(PluginBase):
         These will be mounted directly on the app by PluginManager
         """
 
-        async def root():
-            """
-            Root endpoint
-            """
-            return 'Welcome to sleepy!'
+        # async def root():
+        #     """
+        #     Root endpoint
+        #     """
+        #     return 'Welcome to sleepy!'
         
-        self.add_route(
-            path='/',
-            endpoint=root,
-            methods=['GET'],
-            tags=['example_plugin'],
-            name='example_plugin_root',
-            override=True
-        )
+        # self.add_route(
+        #     path='/',
+        #     endpoint=root,
+        #     methods=['GET'],
+        #     tags=['example_plugin'],
+        #     name='example_plugin_root',
+        #     override=True
+        # )
+        pass
 
 
     def modify_response(

@@ -1,0 +1,255 @@
+/* 音乐播放器CSS Start */
+:root {
+  --bg-color: rgba(255, 255, 255, 0.95);
+  --text-color: #333;
+  --secondary-color: #666;
+  --control-bg: rgba(0, 0, 0, 0.1);
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  --border-color: rgba(127, 127, 127, 0.1);
+  --transition-duration: 0.3s;
+  --slide-distance: 320px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-color: rgba(30, 30, 30, 0.95);
+    --text-color: #fff;
+    --secondary-color: #aaa;
+    --control-bg: rgba(255, 255, 255, 0.1);
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* 播放器容器 */
+#player-container {
+  position: fixed;
+  left: 0;
+  bottom: 20px;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  transition: var(--transition-duration);
+}
+
+/* 主播放器 */
+#player {
+  width: 320px;
+  background: var(--bg-color);
+  color: var(--text-color);
+  backdrop-filter: blur(10px);
+  border-radius: 15px;
+  box-shadow: var(--shadow);
+  padding: 15px;
+  font-family: "Segoe UI", sans-serif;
+  transition: transform var(--transition-duration),
+    opacity var(--transition-duration);
+  transform: translateX(calc(-1 * var(--slide-distance)));
+  opacity: 0;
+  pointer-events: none;
+  border: 1px solid var(--border-color);
+}
+
+#player.active {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 歌曲列表 */
+.song-list {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 0;
+  right: 0;
+  max-height: 50vh;
+  overflow-y: auto;
+  background: var(--bg-color);
+  border-radius: 15px;
+  box-shadow: var(--shadow);
+  display: none;
+  z-index: 1001;
+  padding: 8px 0;
+}
+
+.song-list.show {
+  display: block;
+}
+
+.song-item {
+  padding: 12px;
+  cursor: pointer;
+  transition: background var(--transition-duration);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.song-item:hover,
+.song-item.active {
+  background: var(--control-bg);
+}
+
+.song-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.song-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.song-artist {
+  font-size: 0.8em;
+  color: var(--secondary-color);
+}
+
+/* 折叠状态 */
+#player.collapsed {
+  transform: translateX(calc(-1 * var(--slide-distance)));
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 展开/收起按钮 */
+#toggle-btn {
+  opacity: 0.6;
+  width: 40px;
+  height: 40px;
+  background: var(--bg-color);
+  border-radius: 50%;
+  display: flex;
+  position: fixed;
+  left: 20px;
+  bottom: 20px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  transition: transform var(--transition-duration);
+  margin-left: 10px;
+}
+
+#toggle-btn:hover {
+  transform: scale(1.1);
+}
+
+/* 封面样式 */
+.cover {
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  margin-right: 15px;
+  animation: rotate 20s linear infinite;
+  animation-play-state: paused;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.playing .cover {
+  animation-play-state: running;
+}
+
+/* 歌曲信息 */
+.info {
+  flex: 1;
+  min-width: 0;
+}
+
+.song-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.artist {
+  font-size: 0.9em;
+  color: var(--secondary-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 控制栏 */
+.controls {
+  margin-top: 15px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 输入区域 */
+.playlist-input {
+  transition: var(--transition-duration);
+  display: flex;
+  gap: 10px;
+}
+
+.playlist-input.hidden {
+  opacity: 0;
+  pointer-events: none;
+  height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+#playlistId {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--control-bg);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-color);
+}
+
+/* 加载动画 */
+.loader {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: none;
+  width: 20px;
+  height: 20px;
+  border: 3px solid var(--control-bg);
+  border-top: 3px solid var(--text-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+.return-input {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: var(--control-bg);
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform var(--transition-duration);
+}
+
+.return-input:hover {
+  transform: scale(1.1);
+}

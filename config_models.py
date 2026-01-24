@@ -5,6 +5,71 @@ import typing as t
 
 # region user-config
 
+class _PageConfigModel(BaseModel):
+    '''
+    页面内容配置 (`page`)
+    '''
+
+    name: str = 'User'
+    '''
+    `page.name`
+    你的名字
+    - 将显示在网页中的 `[User]'s Status:` 处
+    '''
+
+    title: str = f'{name} Alive?'
+    '''
+    `page.title`
+    页面标题 (`<title>`)
+    '''
+
+    desc: str = f'{name} \'s Online Status Page'
+    '''
+    `page.desc`
+    页面详情 (用于 SEO, 或许吧)
+    - *`<meta name="description">`*
+    '''
+    favicon: str = '/favicon.ico'
+    '''
+    `page.favicon`
+    页面图标 (favicon) url, 默认为 /favicon.ico
+    - *可为绝对路径 / 相对路径 url*
+    '''
+
+    background: str = 'https://imgapi.siiway.top/image'
+    '''
+    `page.background`
+    背景图片 url / api
+    - *默认为 `https://imgapi.siiway.top/image` (https://github.com/siiway/imgapi)*
+    '''
+
+    learn_more_text: str = 'GitHub Repo'
+    '''
+    `page.learn_more_text`
+    更多信息链接的提示
+    - *默认为 `GitHub Repo`*
+    '''
+
+    learn_more_link: str = 'https://github.com/sleepy-project/sleepy'
+    '''
+    `page.learn_more_link`
+    更多信息链接的目标
+    - *默认为本仓库链接*
+    '''
+
+    more_text: str = ''
+    '''
+    `page.more_text`
+    内容将在状态页底部 learn_more 上方插入 (不转义)
+    - *你可以在此中插入 统计代码 / 备案号 等信息*
+    '''
+
+    theme: str = 'default'
+    '''
+    `page.theme`
+    设置页面的默认主题
+    - 主题名即为 `theme/` 下的文件夹名
+    '''
 
 class _LoggingConfigModel(BaseModel):
     '''
@@ -67,6 +132,10 @@ class ConfigModel(BaseModel):
     '''
     启用 dev Token 登录 (仅用于开发环境)
     '''
+    metrics: bool = False
+    '''
+    启用 统计 (没写)
+    '''
 
     # workers: PositiveInt = 2
     # '''
@@ -74,6 +143,7 @@ class ConfigModel(BaseModel):
     # '''
 
     log: _LoggingConfigModel = _LoggingConfigModel()
+    page: _PageConfigModel = _PageConfigModel()
 
     database: str = 'sqlite:///data.db'
     '''
@@ -82,6 +152,16 @@ class ConfigModel(BaseModel):
     - MySQL: `mysql://用户名:密码@主机:端口号/数据库名`
     - 更多: https://docs.sqlalchemy.org.cn/en/20/core/engines.html#backend-specific-urls
     '''
+
+    cache_age: int = 1200
+    '''
+    `main.cache_age`
+    静态资源缓存时间 (秒)
+    - *建议设置为 20 分钟 (1200s)*
+    '''
+
+    
+
 
     ping_interval: int = 20
     '''

@@ -1,5 +1,5 @@
-# Sleepy FastAPI Ver
+# Sleepy FastAPI Ver  
 
-> Now Backend Only!
-
-In Developing...
+~~> Now Backend Only!~~  
+We have frontend now(without plugin)!  
+In Developing...  

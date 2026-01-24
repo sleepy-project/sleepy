@@ -1,0 +1,11 @@
+<h3>{{ username }}'s Online Status</h3>
+<div>
+    <p>$ online_status.sh</p>
+    <p>> STATUS: <span id="status">{{ status.name }}</span><span class="console-cursor">_</span></p>
+    <p id="additional-info">{{ status.desc | safe }}</p>
+    <p id="device-status"></p>
+</div>
+<p id="last-updated">// 最后更新: {{ last_updated }}</p>
+<script>
+    // document.getElementById('status').classList.add("{{ status.color }}");
+</script>

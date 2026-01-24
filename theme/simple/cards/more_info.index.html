@@ -1,0 +1,12 @@
+{{ more_text | safe }}
+<p>
+    你可以通过这个页面视奸 <b>{{ username }}</b>。<br />
+    <a href="{{ learn_more_link }}" target="_blank">{{ learn_more_text | safe }}</a>
+    |
+    <a href="/panel">管理面板</a>
+</p>
+
+<div style="margin-top: 10px">
+    主题: {% for theme in available_themes %}
+    <a href="/?theme={{ theme }}">{{ theme }}</a>{% if not loop.last %} | {% endif %} {% endfor %}
+</div>

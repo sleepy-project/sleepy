@@ -21,6 +21,7 @@ class DeviceData(SQLModel, table=True):
     '''
     id: str = Field(primary_key=True, index=True)
     name: str = Field()
+    # show_name: str = Field()
     status: str = Field()
     using: bool = Field(default=True)
     fields: t.Dict[str, t.Any] = Field(default={}, sa_type=JSON)

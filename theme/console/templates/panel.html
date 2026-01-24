@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>{{ c.page.name }} - 管理面板</title>
+        <meta name="description" content="管理面板" />
+        <link rel="icon" href="{{ c.page.favicon }}" />
+        <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}" />
+        <link rel="stylesheet" href="{{ url_for('static', filename='panel.css') }}" />
+        <link rel="stylesheet" href="{{ url_for('static', filename='panel_plugin_card.css') }}" />
+        <style>
+            body {
+                background: url('{{ c.page.background }}') no-repeat center center fixed;
+                background-size: cover;
+                padding: 20px;
+            }
+        </style>
+        <script src="{{ url_for('static', filename='panel.js') }}"></script>
+    </head>
+
+    <body class="admin-panel">
+        <div class="panel-container">
+            <div class="panel-header">
+                <h3 class="panel-title">{{ c.page.name }}'s Admin Terminal</h3>
+                <div class="panel-actions">
+                    <button class="btn btn-primary" id="refresh-btn">$ refresh.sh</button>
+                    <a href="/" class="btn btn-secondary">$ cd /</a>
+                    <button class="btn btn-danger" id="logout-btn">$ logout.sh</button>
+                </div>
+            </div>
+
+            <div class="panel-card">
+                <div class="panel-section">
+                    <h2 class="panel-section-title">$ status_manager.sh</h2>
+                    <p>> 当前状态: <span id="current-status-name">加载中...</span><span class="console-cursor">_</span></p>
+                    <div class="status-selector" id="status-selector"></div>
+                </div>
+            </div>
+
+            <div class="panel-card">
+                <div class="panel-section">
+                    <h2 class="panel-section-title">$ theme_manager.sh</h2>
+                    <p>> 当前主题: <span id="current-theme">{{ current_theme }}</span><span class="console-cursor">_</span></p>
+                    <div class="status-selector" id="theme-selector">
+                        {% for theme in available_themes %}
+                        <a href="/panel?theme={{ theme }}">
+                            <div class="status-item {% if current_theme == theme %}active{% endif %}">theme {{ theme }}</div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-card">
+                <div class="panel-section">
+                    <h2 class="panel-section-title">$ device_manager.sh</h2>
+                    <div class="panel-actions" style="margin-bottom: 15px">
+                        <button class="btn btn-danger" id="clear-devices-btn">rm -rf devices/*</button>
+                        <div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="private-mode-toggle" />
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span style="vertical-align: middle; margin-left: 5px">private_mode</span>
+                        </div>
+                    </div>
+                    <table class="device-list">
+                        <thead>
+                            <tr>
+                                <th>设备ID</th>
+                                <th>显示名称</th>
+                                <th>使用状态</th>
+                                <th>应用名称</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="device-list-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            {% if c.metrics.enabled %}
+            <div class="panel-card">
+                <div class="panel-section">
+                    <h2 class="panel-section-title">$ metrics.sh</h2>
+                    <div class="metrics-container" id="metrics-container"></div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- 插件管理后台卡片 -->
+            {% for id, card in cards.items() %}
+            <div class="panel-card plugin-card" id="{{ id }}">
+                <div class="panel-section">
+                    <h2 class="panel-section-title">{{ card.title }} <span class="plugin-badge">{{ card.plugin }}</span></h2>
+                    <div class="plugin-card-content">{{ card.content | safe }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </body>
+
+    {{ inject | safe }}
+</html>

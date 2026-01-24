@@ -1,10 +1,35 @@
 # coding: utf-8
 
+from io import BytesIO
 import os
 from pathlib import Path
 import time
 from typing import Any
 
+def list_dirs(path: str, strict_exist: bool = False, name_only: bool = False) -> list:
+    '''
+    列出目录下的**目录**列表
+
+    :param path: 目录路径
+    :param strict_exist: 目标目录不存在时是否抛出错误 *(为否则返回空列表)*
+    :param name_only: 是否仅返回目录名
+    '''
+
+    try:
+        rawlst = os.listdir(path)
+        endlist: list[str] = []
+        for i in rawlst:
+            fullname_i = str(Path(path).joinpath(i))
+            if os.path.isdir(fullname_i) and (not '__pycache__' in fullname_i):
+                # 如为目录 -> 追加
+                endlist.append(i if name_only else fullname_i)
+        return endlist
+    except FileNotFoundError:
+        # 找不到目标文件夹
+        if strict_exist:
+            raise
+        else:
+            return []
 
 def __replace_code_tags(text: str) -> str:
     '''
@@ -108,3 +133,4 @@ def deep_merge_dict(*dicts: dict) -> dict:
                     base[key] = value
 
     return base
+

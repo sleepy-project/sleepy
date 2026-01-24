@@ -1,0 +1,25 @@
+<div>
+    <p id="hitokoto">
+        <a href="#" id="hitokoto_text">一言获取中~</a>
+    </p>
+    <script defer>
+        const hitokotoElement = document.querySelector('#hitokoto_text');
+        try {
+            fetch('https://v1.hitokoto.cn')
+                .then(response => response.json())
+                .then(data => {
+                    console.log(`[Hitokoto] enabled and got response`);
+                    hitokotoElement.href = `https://hitokoto.cn/?uuid=${data.uuid}`;
+                    hitokotoElement.innerText = data.hitokoto;
+                    if (data.from || data.from_who) {
+                        hitokotoElement.title = `—— ${data.from_who ? data.from_who : ''}${data.from ? ' 「' + data.from + '」' : ''}`;
+                    }
+                })
+        }
+        catch (error) {
+            console.error(`[Hitokoto] fetch error: ${error}`);
+            hitokotoElement.innerText = '一言获取失败 :(';
+            hitokotoElement.title = `Error: ${error}`;
+        }
+    </script>
+</div>

@@ -1,0 +1,54 @@
+<div class="card light" id="more_text">
+    <h3><b><p id="device-status"><i>Examination</i> Status</p></b></h3>
+    <!-- 根据总分判断结果显示 (若txt文档中“总分”字眼后的数字大于txt文档中“满分”字眼后的数字的60%则显示“合格”，否则则显示“寄了”) -->
+    <h3><b><a id="status"><p id="result-text"></p></a></b></h3>
+    <hr />
+    <!-- 用于显示文本的容器 -->
+    <div id="zhixue-text"></div>
+    <script>
+        // 创建一个新的 XMLHttpRequest 对象
+        const xhr = new XMLHttpRequest();
+        // 打开一个 GET 请求，请求 /static/zhixue.txt 文件
+        xhr.open('GET', '/static/zhixue.txt', true);
+        // 监听请求状态变化
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                // 当请求成功时，将响应文本按行分割
+                const lines = xhr.responseText.split('\n');
+                // 对第一行文本加粗
+                if (lines.length > 0) {
+                    lines[0] = '<b>' + lines[0] + '</b>';
+                }
+                // 将处理后的文本重新组合，并将换行符替换为 <br> 标签
+                const textWithBreaks = lines.join('\n').replace(/\n/g, '<br>');
+                // 将替换后的文本插入到 id 为 zhixue-text 的元素中
+                document.getElementById('zhixue-text').innerHTML = textWithBreaks;
+
+                // 提取总分
+                const totalScoreRegex = /总分: (\d+\.\d+)/;
+                const totalScoreMatch = xhr.responseText.match(totalScoreRegex);
+                // 提取满分
+                const fullScoreRegex = /满分: (\d+\.\d+)/;
+                const fullScoreMatch = xhr.responseText.match(fullScoreRegex);
+
+                if (totalScoreMatch && fullScoreMatch) {
+                    const totalScore = parseFloat(totalScoreMatch[1]);
+                    const fullScore = parseFloat(fullScoreMatch[1]);
+                    const passScore = fullScore * 0.6;
+                    const resultText = totalScore > passScore ? '合格' : '寄了';
+                    const resultElement = document.getElementById('result-text');
+                    resultElement.textContent = resultText;
+
+                    // 根据结果添加相应的类名
+                    if (resultText === '合格') {
+                        resultElement.classList.add('awake');
+                    } else {
+                        resultElement.classList.add('sleeping');
+                    }
+                }
+            }
+        };
+        // 发送请求
+        xhr.send();
+    </script>
+</div>

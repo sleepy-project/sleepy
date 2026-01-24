@@ -1,5 +1,7 @@
 # coding: utf-8
 
+from io import BytesIO
+from pathlib import Path
 from time import time
 from datetime import datetime, timezone, timedelta
 from logging import getLogger as logging_getLogger, WARNING, Handler as LoggingHandler
@@ -8,17 +10,23 @@ import typing as t
 import asyncio
 from contextvars import ContextVar
 from sys import stderr
+import os
 from traceback import format_exc
 from uuid import uuid4 as uuid, UUID
 from hashlib import sha256
+from mimetypes import guess_type
 import argparse
 
 from uvicorn import run
 from loguru import logger as l
 from toml import load as load_toml
 from fastapi import FastAPI, APIRouter, Depends, HTTPException, Request, Header, WebSocket, WebSocketDisconnect, status as hc, Security
-from fastapi.responses import JSONResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, FileResponse,StreamingResponse , Response
 from fastapi.encoders import jsonable_encoder
+from starlette.templating import Jinja2Templates as Jinja2Templates  # noqa
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from starlette.templating import _TemplateResponse as TemplateResponse
+
 from sqlmodel import create_engine, SQLModel, Session, select
 from pydantic import BaseModel, model_validator
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -27,6 +35,8 @@ from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html, get_swagge
 from fastapi.openapi.utils import get_openapi
 from fastapi.security import APIKeyHeader
 import bcrypt
+from werkzeug.security import safe_join
+import schedule
 
 from config import config as c
 import errors as e
@@ -42,7 +52,6 @@ reqid: ContextVar[str] = ContextVar('sleepy_reqid', default='not-in-request')
 # init logger
 l.remove()
 
-
 def log_format(record):
     reqid = record['extra'].get('reqid', 'fallback-logid')
     return '<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level}</level> | <yellow>' + reqid + '</yellow> | <cyan>{name}</cyan>:<cyan>{line}</cyan> | <level>{message}</level>\n'
@@ -53,7 +62,7 @@ l.add(
     level=c.log.level,
     format=log_format,
     backtrace=True,
-    diagnose=True
+    diagnose=True,
 )
 if c.log.file:
     l.add(
@@ -122,7 +131,6 @@ def parse_cli_args():
 def get_session():
     with Session(engine) as sess:
         yield sess
-
 
 SessionDep = t.Annotated[Session, Depends(get_session)]
 
@@ -522,10 +530,7 @@ def _issue_access_from_refresh(sess: Session, refresh_record: m.TokenData) -> Au
         expires_at=expires_at,
         type=login_type
     )
-
-
-@app.post('/api/init', response_model=InitResponse, name='Initialize auth secret')
-async def init_auth(sess: SessionDep, req: InitRequest):
+async def _init_auth(sess: SessionDep, req: InitRequest):
     if _is_auth_initialized(sess):
         raise e.APIUnsuccessful(hc.HTTP_409_CONFLICT, 'Auth already initialized')
     normalized = _normalize_password(req.password, req.hashed)
@@ -539,9 +544,11 @@ async def init_auth(sess: SessionDep, req: InitRequest):
     sess.commit()
     return {'initialized': True}
 
+@app.post('/api/init', response_model=InitResponse, name='Initialize auth secret')
+async def init_auth(sess: SessionDep, req: InitRequest):
+    return await _init_auth(sess,req)
 
-@auth_router.post('/login', response_model=AuthTokensResponse, name='Login and issue auth tokens')
-async def auth_login(sess: SessionDep, req: AuthLoginRequest):
+async def _auth_login(sess: SessionDep, req: AuthLoginRequest):
     secret = _ensure_auth_initialized(sess)
     normalized = _normalize_password(req.password, req.hashed)
     if not bcrypt.checkpw(normalized.encode('utf-8', errors='xmlcharrefreplace'), secret.password):
@@ -549,9 +556,11 @@ async def auth_login(sess: SessionDep, req: AuthLoginRequest):
         raise e.APIUnsuccessful(hc.HTTP_401_UNAUTHORIZED, 'Incorrect password')
     return _issue_full_session(sess, req.device_uid, req.type)
 
+@auth_router.post('/login', response_model=AuthTokensResponse, name='Login and issue auth tokens')
+async def auth_login(sess: SessionDep, req: AuthLoginRequest):
+    return await _auth_login(sess,req)
 
-@auth_router.post('/refresh', response_model=AuthTokensResponse, name='Refresh auth token')
-async def auth_refresh(sess: SessionDep, req: AuthRefreshRequest):
+async def _auth_refresh(sess: SessionDep, req: AuthRefreshRequest):
     _ensure_auth_initialized(sess)
     now_ts = datetime.now(timezone.utc).timestamp()
     access_token = sess.get(m.TokenData, str(req.token))
@@ -580,6 +589,11 @@ async def auth_refresh(sess: SessionDep, req: AuthRefreshRequest):
     sess.delete(access_token)
     return _issue_access_from_refresh(sess, refresh_token)
 
+@auth_router.post('/refresh', response_model=AuthTokensResponse, name='Refresh auth token')
+async def auth_refresh(sess: SessionDep, req: AuthRefreshRequest):
+    
+    return await _auth_refresh(sess,req)
+
 
 class TokenDep:
     def __init__(
@@ -603,6 +617,7 @@ class TokenDep:
         sess: SessionDep,
         token_value: t.Annotated[str | None, Security(sleepy_token_header)] = None,
         authorization: t.Annotated[str | None, Header(include_in_schema=False)] = None,
+        request:Request = None, # type: ignore
     ) -> m.TokenData | None:
         if token_value:
             l.debug('Got token from X-Sleepy-Token security header')
@@ -610,7 +625,12 @@ class TokenDep:
             token_value = authorization[7:]
             l.debug('Got token from Authorization header')
         else:
-            l.debug('No token provided in headers')
+            if request == None:
+                l.debug('No token provided in headers')
+            else:
+                l.debug('No token provided in headers,try to get in cookie')
+                
+            
 
         if not token_value:
             if self.throw:
@@ -636,12 +656,12 @@ class TokenDep:
                             token_device_hash = _token_device_hash(info.type)
                             expected_device_hash = _device_hash(self.device_id)
                             if token_device_hash != expected_device_hash:
-                                l.debug(f'Device token cannot access device {self.device_id}')
+                                l.info(f'Device token cannot access device {self.device_id}')
                                 if self.throw:
                                     raise e.APIUnsuccessful(hc.HTTP_403_FORBIDDEN, 'Unauthorized for this device')
                                 return None
                         else:
-                            l.debug(f'Unknown login type {login_type} for device access')
+                            l.info(f'Unknown login type {login_type} for device access')
                             if self.throw:
                                 raise e.APIUnsuccessful(hc.HTTP_403_FORBIDDEN, 'Invalid token type')
                             return None
@@ -651,9 +671,9 @@ class TokenDep:
                     sess.commit()
                     return info
             else:
-                l.debug(f'Token type {info.type} is not allowed in {self.allowed_token_types}')
+                l.info(f'Token type {info.type} is not allowed in {self.allowed_token_types}')
         else:
-            l.debug('Token not found in database')
+            l.info('Token not found in database')
 
         if self.throw:
             raise e.APIUnsuccessful(hc.HTTP_401_UNAUTHORIZED, 'Invalid token')
@@ -680,20 +700,6 @@ async def auth_check(
 # root
 
 
-class RootResponse(BaseModel):
-    hello: str = 'sleepy'
-    version: tuple[int, int, int] = (6, 0, 0)
-    version_str: str = '6.0.0'
-
-
-@app.get('/', response_model=RootResponse)
-async def root():
-    return {
-        'hello': 'sleepy',
-        'version': version,
-        'version_str': version_str
-    }
-
 
 class QueryResponse(BaseModel):
     time: float
@@ -701,9 +707,7 @@ class QueryResponse(BaseModel):
     devices: list[m.DeviceData]
     last_updated: float
 
-
-@app.get('/api/query', response_model=QueryResponse)
-async def query(sess: SessionDep):
+async def _query(sess: SessionDep):
     meta = sess.exec(select(m.Metadata)).first()
     if meta:
         devices = sess.exec(select(m.DeviceData)).all()
@@ -716,6 +720,9 @@ async def query(sess: SessionDep):
     else:
         raise e.APIUnsuccessful(hc.HTTP_500_INTERNAL_SERVER_ERROR, 'Cannot read metadata')
 
+@app.get('/api/query', response_model=QueryResponse)
+async def query(sess: SessionDep):
+    return await _query(sess)
 
 @app.get('/api/health', status_code=hc.HTTP_204_NO_CONTENT)
 async def health():
@@ -1005,9 +1012,7 @@ status_router = APIRouter(
 class GetStatusResponse(BaseModel):
     status: int | None = 0
 
-
-@status_router.get('/', response_model=GetStatusResponse)
-async def get_status(sess: SessionDep):
+async def _get_status(sess: SessionDep):
     meta = sess.exec(select(m.Metadata)).first()
     if meta:
         return {
@@ -1016,16 +1021,16 @@ async def get_status(sess: SessionDep):
     else:
         raise e.APIUnsuccessful(hc.HTTP_500_INTERNAL_SERVER_ERROR, 'Cannot read metadata')
 
+@status_router.get('/', response_model=GetStatusResponse)
+async def get_status(sess: SessionDep):
+    return await _get_status(sess)
 
 class SetStatusRequest(BaseModel):
     status: int
 
-
-@status_router.post('/', status_code=hc.HTTP_204_NO_CONTENT)
-async def set_status(
+async def _set_status(
     sess: SessionDep,
     req: SetStatusRequest,
-    _: m.TokenData = Security(TokenDep(allowed_login_types=('web', 'dev')))
 ):
     meta = sess.exec(select(m.Metadata)).first()
     if not meta:
@@ -1038,6 +1043,13 @@ async def set_status(
         sess.commit()
         await manager.evt_broadcast('status_changed', {'status': req.status})
         return
+@status_router.post('/', status_code=hc.HTTP_204_NO_CONTENT)
+async def set_status(
+    sess: SessionDep,
+    req: SetStatusRequest,
+    _: m.TokenData = Security(TokenDep(allowed_login_types=('web', 'dev')))
+):
+    await _set_status(sess,req)
 
 # endregion routes-status
 
@@ -1048,14 +1060,15 @@ devices_router = APIRouter(
     tags=['devices']
 )
 
-
-@devices_router.get('/{device_id}', response_model=m.DeviceData)
-async def get_device(sess: SessionDep, device_id: str):
+async def _get_device(sess: SessionDep, device_id: str):
     device = sess.get(m.DeviceData, device_id)
     if device:
         return device
     else:
         raise e.APIUnsuccessful(hc.HTTP_404_NOT_FOUND, 'Device not found')
+@devices_router.get('/{device_id}', response_model=m.DeviceData)
+async def get_device(sess: SessionDep, device_id: str):
+    return await _get_device(sess,device_id)
 
 
 class UpdateDeviceRequest(BaseModel):
@@ -1067,6 +1080,7 @@ class UpdateDeviceRequest(BaseModel):
 
 class CreateDeviceRequest(BaseModel):
     name: str
+    # name: str
     status: str | None = None
     using: bool | None = None
     fields: dict | None = None
@@ -1079,12 +1093,9 @@ class CreateDeviceResponse(BaseModel):
     refresh_token: UUID
     expires_at: float | None = None
 
-
-@devices_router.post('/', response_model=CreateDeviceResponse, status_code=hc.HTTP_201_CREATED, name='Create a device')
-async def create_device(
+async def _create_device(
     sess: SessionDep,
     req: CreateDeviceRequest,
-    _: m.TokenData = Security(TokenDep(allowed_login_types=('web', 'dev')))
 ):
     device_id = uuid().hex
     status = req.status or ''
@@ -1117,22 +1128,19 @@ async def create_device(
         'refresh_token': tokens.refresh_token,
         'expires_at': tokens.expires_at
     }
+@devices_router.post('/', response_model=CreateDeviceResponse, status_code=hc.HTTP_201_CREATED, name='Create a device')
+async def create_device(
+    request : Request,
+    sess: SessionDep,
+    req: CreateDeviceRequest,
+    _: m.TokenData = Security(TokenDep(allowed_login_types=('web', 'dev')))
+):
+    return await _create_device(sess,req)
 
-
-@devices_router.put('/{device_id}', status_code=hc.HTTP_204_NO_CONTENT, name='Update a device')
-async def update_device(
+async def _update_device(
     sess: SessionDep,
     device_id: str,
-    req: UpdateDeviceRequest,
-    token_value: t.Annotated[str | None, Security(sleepy_token_header)] = None,
-    authorization: t.Annotated[str | None, Header(include_in_schema=False)] = None
-):
-
-    TokenDep(
-        allowed_login_types=('web', 'dev', 'device'),
-        device_id=device_id
-    )(sess, token_value, authorization)
-
+    req: UpdateDeviceRequest,):
     device = sess.get(m.DeviceData, device_id)
     if device:
         updated = {}
@@ -1160,12 +1168,26 @@ async def update_device(
     else:
         raise e.APIUnsuccessful(hc.HTTP_404_NOT_FOUND, 'Device not found')
 
-
-@devices_router.delete('/{device_id}', status_code=hc.HTTP_204_NO_CONTENT)
-async def delete_device(
+@devices_router.put('/{device_id}', status_code=hc.HTTP_204_NO_CONTENT, name='Update a device')
+async def update_device(
     sess: SessionDep,
     device_id: str,
-    _: m.TokenData = Security(TokenDep(allowed_login_types=('web', 'dev')))
+    req: UpdateDeviceRequest,
+    token_value: t.Annotated[str | None, Security(sleepy_token_header)] = None,
+    authorization: t.Annotated[str | None, Header(include_in_schema=False)] = None
+):
+
+    TokenDep(
+        allowed_login_types=('web', 'dev', 'device'),
+        device_id=device_id
+    )(sess, token_value, authorization)
+    await _update_device(sess,device_id,req)
+
+
+    
+async def _delete_device(
+    sess: SessionDep,
+    device_id: str,
 ):
     device = sess.get(m.DeviceData, device_id)
     if device:
@@ -1177,26 +1199,30 @@ async def delete_device(
         _clear_device_tokens(sess, device_hash)
         sess.commit()
         await manager.evt_broadcast('device_deleted', {'id': device_id})
+@devices_router.delete('/{device_id}', status_code=hc.HTTP_204_NO_CONTENT)
+async def delete_device(
+    sess: SessionDep,
+    device_id: str,
+    _: m.TokenData = Security(TokenDep(allowed_login_types=('web', 'dev')))
+):
+    await _delete_device(sess,device_id)
     return
 
 
 class GetDevicesResponse(BaseModel):
     devices: list[m.DeviceData]
 
+async def _get_devices(sess: SessionDep) -> t.Sequence[m.DeviceData]:
+    devices = sess.exec(select(m.DeviceData)).all()
+    return devices
 
 @devices_router.get('/', response_model=GetDevicesResponse)
 async def get_devices(sess: SessionDep):
-    devices = sess.exec(select(m.DeviceData)).all()
     return {
-        'devices': devices
+        'devices': await _get_devices(sess)
     }
 
-
-@devices_router.delete('/', status_code=hc.HTTP_204_NO_CONTENT)
-async def clear_devices(
-    sess: SessionDep,
-    _: m.TokenData = Security(TokenDep(allowed_login_types=('web', 'dev')))
-):
+async def _clear_devices(sess: SessionDep):
     devices = sess.exec(select(m.DeviceData)).all()
     for d in devices:
         _clear_device_tokens(sess, _device_hash(d.id))
@@ -1208,20 +1234,444 @@ async def clear_devices(
     await manager.evt_broadcast('devices_cleared')
     return
 
+@devices_router.delete('/', status_code=hc.HTTP_204_NO_CONTENT)
+async def clear_devices(
+    sess: SessionDep,
+    _: m.TokenData = Security(TokenDep(allowed_login_types=('web', 'dev')))
+):
+    await _clear_devices(sess=sess)
+    return
+
 # endregion routes-device
 
 # endregion routes
 
-# region main
+# region frontend
 
+# --- 缓存系统
+_cache: dict[str, tuple[float, BytesIO]] = {}
+
+def get_cached_file(dirname: str, filename: str) -> BytesIO | None:
+        '''
+        加载文件 (经过缓存)
+
+        :param dirname: 路径
+        :param filename: 文件名
+        :return bytesIO: (加载成功) 文件内容 **(字节流)**
+        :return None: (加载失败) 空
+        '''
+        filepath = os.path.join(u.get_path(dirname), filename)
+        if not filepath:
+            # unsafe -> none
+            return None
+        try:
+            if app.debug:
+                # debug -> load directly
+                with open(filepath, 'rb') as f:
+                    return BytesIO(f.read())
+            else:
+                cache_key = f'f-{dirname}/{filename}'
+                # check cache & expire
+                now = time()
+                cached = _cache.get(cache_key)
+                if cached and now - cached[0] < c.cache_age:
+                    # has cache, and not expired
+                    return cached[1]
+                else:
+                    # no cache, or expired
+                    with open(filepath, 'rb') as f:
+                        ret = BytesIO(f.read())
+                    _cache[cache_key] = (now, ret)
+                    return ret
+        except FileNotFoundError or IsADirectoryError:
+            # not found / isn't file -> none
+            return None
+
+def get_cached_text(dirname: str, filename: str) -> str | None:
+        '''
+        加载文本文件 (经过缓存)
+
+        :param dirname: 路径
+        :param filename: 文件名
+        :return bytes: (加载成功) 文件内容 **(字符串)**
+        :return None: (加载失败) 空
+        '''
+        raw = get_cached_file(dirname, filename)
+        if raw:
+            try:
+                return str(raw.getvalue(), encoding='utf-8')
+            except UnicodeDecodeError:
+                return None
+        else:
+            return None
+
+def _clean_cache():
+        '''
+        清理过期缓存
+        '''
+        if app.debug:
+            return
+        now = time()
+        for name in _cache.keys():
+            if now - _cache.get(name, (now, ''))[0] > c.cache_age:
+                f = _cache.pop(name, (0, None))[1]
+                if f:
+                    f.close()
+# ========== Theme ==========
+
+# region theme
+_themes_available_cache = sorted(u.list_dirs('theme', name_only=True))
+
+
+def themes_available() -> list[str]:
+    if app.debug:
+        return sorted(u.list_dirs('theme', name_only=True))
+    else:
+        return _themes_available_cache
+    
+#generated by ai
+def render_template(request: Request,filename: str, _dirname: str = 'templates', _theme: str | None = None, **context) -> str | None:
+    '''
+    渲染模板 (使用指定主题)
+
+    :param filename: 文件名
+    :param _dirname: `theme/[主题名]/<dirname>/<filename>`
+    :param _theme: 主题 (未指定则从 `flask.g.theme` 读取)
+    :param **context: 将传递给 `flask.render_template_string` 的模板上下文
+    '''
+    l.info(f'[render_template] filename:{filename}')
+    if _theme is None:
+        _theme = request.cookies.get("sleepy-theme", "default")
+    # content = get_cached_text('theme', f'{_theme}/{_dirname}/{filename}')
+    path_obj = Path('theme') / _theme / _dirname
+    content = path_obj / filename
+    if not content.exists():
+        # 回退到默认主题
+        path_obj = Path("theme") / "default" / _dirname
+        content = path_obj / filename
+        if not content.exists():
+            raise HTTPException(404, f"Template {_dirname}/{filename} not found")
+    env = Environment(
+        loader=FileSystemLoader(path_obj),
+        autoescape=select_autoescape(['html', 'xml'])
+    )
+    env.globals['request'] = request
+    env.globals['url_for'] = request.url_for
+    
+    template = env.get_template(name=filename)
+    return template.render(**context)
+
+@app.get('/static/static/{filename:path}', name="static")
+def static_proxy(filename: str):
+    '''
+    静态文件的主题处理 (重定向到 /static-themed/主题名/static/文件名)
+    '''
+    # 重定向
+    l.info(f'/static-themed/{c.page.theme}/static/{filename}')
+    return RedirectResponse(f'/static-themed/{c.page.theme}/static/{filename}', 302)
+
+@app.get('/static/{filename:path}', name="theme")
+def theme_proxy(filename: str):
+    '''
+    静态文件的主题处理 (重定向到 /static-themed/主题名/文件名)
+    '''
+    # 重定向
+    return RedirectResponse(f'/static-themed/{c.page.theme}/{filename}', 302)
+
+
+
+
+@app.get('/static-themed/{theme}/{filename:path}')
+def static_themed(theme: str, filename: str):
+    '''
+    经过主题分隔的静态文件 (便于 cdn / 浏览器 进行缓存)
+    '''
+    try:
+        l.debug(f'[theme] return static file {filename} from theme {theme}')
+        return FileResponse(f"theme/{theme}/{filename}")
+    except :
+        # 2. 主题不存在 (而且不是默认) -> fallback 到默认
+        if theme != 'default':
+            l.debug(f'[theme] static file {filename} not found in theme {theme}, fallback to default')
+            # return u.no_cache_response(flask.redirect(f'/static-themed/default/{filename}', 302))
+            return RedirectResponse(f'/static-themed/default/{filename}', 302)
+
+        # 3. 默认主题也没有 -> 404
+        else:
+            l.warning(f'[theme] static file {filename} not found')
+            return HTTPException(404,f"static file {filename} not found")
+
+
+@app.get('/default/{filename:path}')
+def static_default_theme(filename: str):
+    '''
+    兼容在非默认主题中使用:
+    ```
+    import { ... } from "../../default/static/utils";
+    ```
+    '''
+    if not filename.endswith('.js'):
+        filename += '.js'
+    return FileResponse(f"./theme/default/{filename}")
+
+
+# endregion theme
+
+# ----- Panel (Admin) -----
+
+# region routes-panel
+panel_router = APIRouter(
+    prefix='/panel',
+    tags=['panel']
+)
+
+@app.get('/panel')
+def admin_panel(request:Request,
+                sess: SessionDep,
+                ):
+    '''
+    管理面板
+    - Method: **GET**
+    '''
+    token = TokenDep(
+        throw=False,
+        allowed_login_types=('web',),
+    )(sess, request.cookies.get("sleepy_secret_token"), None,request=request)
+
+    if(token == None):
+        return RedirectResponse("/panel/login")
+    # 加载管理面板卡片
+    # cards = {}
+    # for name, card in plugin_manager.panel_cards.items():
+    #     if hasattr(card['content'], '__call__'):
+    #         cards[name] = card.copy()
+    #         cards[name]['content'] = card['content']()  # type: ignore
+    #     else:
+    #         cards[name] = card
+
+    # 处理管理面板注入
+    # inject = ''
+    # for i in p.panel_injects:
+    #     if hasattr(i, '__call__'):
+    #         inject += str(i()) + '\n'  # type: ignore
+    #     else:
+    #         inject += str(i) + '\n'
+
+    # 问题是plugin没写(
+    return HTMLResponse(render_template(
+        request,
+        'panel.html',
+        c=c,
+        cards={"":""},
+        current_theme='default',
+        available_themes=themes_available(),
+        # cards=cards,
+        # inject=inject
+    ))
+@panel_router.get('/init')
+def panel_init(request:Request,
+                sess: SessionDep,
+                ):
+    '''
+    init页面
+    - Method: **GET**
+    '''
+    if _is_auth_initialized(sess):
+        return RedirectResponse("/panel/login")
+    return HTMLResponse(render_template(
+        request,
+        'init.html',
+        c=c,
+        current_theme='default'
+    ))
+
+@panel_router.get('/login')
+def panel_login(request:Request,
+                sess: SessionDep,):
+    '''
+    登录页面
+    - Method: **GET**
+    '''
+    token = TokenDep(
+        throw=False,
+        allowed_login_types=('web',),
+    )(sess, request.cookies.get("sleepy_secret_token"), None,request=request)
+
+
+    # if(token != None):
+    #     return RedirectResponse("/panel")
+    return HTMLResponse(render_template(
+        request,
+        'login.html',
+        c=c,
+        current_theme='default'
+    ))
+
+
+# region routes-panel-api
+
+@panel_router.get('/verify')
+@panel_router.post('/verify')
+async def panel_api_verify_secret(request:Request,
+                sess: SessionDep):
+    '''
+    验证密钥是否有效
+    - Method: **GET / POST**
+    '''
+    token = TokenDep(
+        throw=True,
+        allowed_login_types=('web',),
+    )(sess, request.cookies.get("sleepy_secret_token"), None,request=request)
+
+    l.debug('[Panel] Secret verified')
+    return {
+        'success': True,
+        'code': 'OK',
+        'message': 'Secret verified'
+    }
+panel_api_router = APIRouter(
+    prefix='/panel/api',
+    tags=['panel-api']
+)
+@panel_api_router.get('/init')
+async def panel_api_init(request:Request,
+                sess: SessionDep,
+                req:InitRequest
+                ):
+    '''
+    登录页面
+    - Method: **GET**
+    '''
+    return await _init_auth(sess,req)
+
+@panel_api_router.post('/login')
+async def panel_api_login(request:Request,
+                sess: SessionDep,
+                req: AuthLoginRequest
+                ):
+    '''
+    登录页面api
+    - Method: **GET**
+    '''
+    response = await _auth_login(sess,req)
+    request.cookies['sleepy_secret_refresh_token'] = response.refresh_token.hex
+    request.cookies['sleepy_secret_token'] = response.token.hex
+    request.cookies['expires_at'] = str(response.expires_at)
+    
+    return response
+
+# endregion routes-panel-api
+# endregion routes-panel
 app.include_router(auth_router)
 app.include_router(devices_router)
 app.include_router(status_router)
+app.include_router(panel_router)
+app.include_router(panel_api_router)
+
+@app.get('/')
+async def root(request: Request,sess: SessionDep):
+    '''
+    根目录返回 html
+    - Method: **GET**
+    '''
+    # 获取更多信息 (more_text)
+    more_text: str = c.page.more_text
+    # if c.metrics.enabled:
+    #     daily, weekly, monthly, yearly, total = d.metric_data_index
+    #     more_text = more_text.format(
+    #         visit_daily=daily,
+    #         visit_weekly=weekly,
+    #         visit_monthly=monthly,
+    #         visit_yearly=yearly,
+    #         visit_total=total
+    #     )
+    # lazyboy
+    print(1)
+    meta = sess.exec(select(m.Metadata)).first()
+    if meta:
+        devices = sess.exec(select(m.DeviceData)).all()
+    else:
+        return HTTPException(500,"async def root(request: Request,sess: SessionDep):devices = sess.exec(select(m.DeviceData)).all() error!")
+    main_card: str = render_template(  # type: ignore
+        request=request,
+        filename='main.index.html',
+        _dirname='cards',
+        username=c.page.name,
+        status=devices[0].status,
+        last_updated=datetime.fromtimestamp(devices[0].last_updated, timezone.utc).strftime(f'%Y-%m-%d %H:%M:%S') + ' (UTC+8)'
+    )
+    more_info_card: str = render_template(  # type: ignore
+        request=request,
+        filename='more_info.index.html',
+        _dirname='cards',
+        more_text=more_text,
+        username=c.page.name,
+        learn_more_link=c.page.learn_more_link,
+        learn_more_text=c.page.learn_more_text,
+        available_themes=themes_available()
+    )
+    l.info(2)
+
+    # 加载插件卡片
+    cards = {
+        'main': main_card,
+        'more-info': more_info_card
+    }
+    # for name, values in p.index_cards.items():
+    #     value = ''
+    #     for v in values:
+    #         if hasattr(v, '__call__'):
+    #             value += f'{v()}<br/>\n'  # type: ignore - pylance 不太行啊 (?
+    #         else:
+    #             value += f'{v}<br/>\n'
+    #     cards[name] = value
+
+    # 处理主页注入
+    # injects: list[str] = []
+    # for i in plu.index_injects:
+    #     if hasattr(i, '__call__'):
+    #         injects.append(str(i()))  # type: ignore
+    #     else:
+    #         injects.append(str(i))
+
+    # evt = plugin_manager.trigger_event(pl.IndexAccessEvent(page_title=c.page.title, page_desc=c.page.desc, page_favicon=c.page.favicon, page_background=c.page.background, cards=cards, injects=injects))
+
+    # if evt.interception:
+    #     return evt.interception
+    # 返回 html
+    return HTMLResponse(render_template(
+        request=request,
+        filename='index.html',
+        page_title=c.page.title,
+        page_desc=c.page.desc,
+        page_favicon=c.page.favicon,
+        page_background=c.page.background,
+        cards=cards,
+        # inject='\n'.join(evt.injects)
+    ))
+
+    
+# endregion frontend
+# region main
+
+@app.get('/{path_name:path}')
+async def serve_public(request: Request, path_name: str):
+    '''
+    服务 `/data/public` / `/public` 文件夹下文件
+    '''
+    l.debug(f'Serving static file: {path_name}')
+    file = get_cached_file('data/public', path_name) or get_cached_file('public', path_name)
+    if file:
+        mime = guess_type(path_name)[0] or 'text/plain'
+        return StreamingResponse(file)
+    else:
+        return HTTPException(404)
 
 if __name__ == '__main__':
     args = parse_cli_args()
     if args.fresh_start:
         perform_fresh_start()
+    schedule.every(c.cache_age).seconds.do(_clean_cache)  # cache
     l.info(f'Starting server: {f"[{c.host}]" if ":" in c.host else c.host}:{c.port}')  # with {c.workers} workers')
     run('main:app', host=c.host, port=c.port)  # , workers=c.workers)
     l.info('Bye.')

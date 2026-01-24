@@ -1,0 +1,198 @@
+:root {
+  --lantern-color: 216, 0, 15;
+  --lantern-accent: #dc8f03;
+  --glow-fast: -5px 5px 50px 4px #fa6c00;
+  --glow-slow: -5px 5px 30px 4px #fc903d;
+  --swing-3s: swing 3s infinite ease-in-out;
+  --swing-5s: swing 5s infinite ease-in-out;
+}
+
+.lanterns__box {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  top: -40px;
+}
+
+/* 灯笼定位 */
+.lanterns__box--left {
+  left: 160px;
+}
+.lanterns__box--left-close {
+  left: 10px;
+  top: -30px;
+}
+.lanterns__box--right {
+  right: 160px;
+}
+.lanterns__box--right-close {
+  right: 10px;
+  top: -30px;
+}
+
+/* 灯笼主体 */
+.lanterns__item {
+  position: relative;
+  width: 120px;
+  height: 90px;
+  margin: 50px;
+  background: rgba(var(--lantern-color), 0.8);
+  border-radius: 50%;
+  transform-origin: 50% -100px;
+}
+
+/* 动画控制 */
+.lanterns__item[data-speed="fast"] {
+  animation: var(--swing-3s);
+  box-shadow: var(--glow-fast);
+}
+.lanterns__item[data-speed="slow"] {
+  animation: var(--swing-5s);
+  box-shadow: var(--glow-slow);
+}
+
+/* 灯笼装饰元素 */
+.lanterns__string {
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  width: 2px;
+  height: 20px;
+  background: var(--lantern-accent);
+  transform: translateX(-50%);
+}
+
+.lanterns__body {
+  position: relative;
+  width: 100px;
+  height: 90px;
+  margin: 12px auto;
+  border: 2px solid var(--lantern-accent);
+  border-radius: 50%;
+}
+
+.lanterns__decorative {
+  width: 45px;
+  height: 90px;
+  margin: -4px auto;
+  border: 2px solid var(--lantern-accent);
+  border-radius: 50%;
+}
+
+/* 灯笼文字 */
+.lanterns__character {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font: 700 3.2rem/1 黑体, sans-serif;
+  color: var(--lantern-accent);
+}
+
+/* 流苏样式 */
+.lanterns__tassel {
+  position: relative;
+  width: 5px;
+  height: 20px;
+  margin: -5px auto 0;
+  animation: var(--swing-3s);
+  transform-origin: 50% -45px;
+  background: orange;
+  border-radius: 0 0 5px 5px;
+}
+.lanterns__tassel::before,
+.lanterns__tassel::after {
+  content: "";
+  position: absolute;
+  background: var(--lantern-accent);
+}
+.lanterns__tassel::before {
+  top: 14px;
+  left: -2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.lanterns__tassel::after {
+  top: 18px;
+  left: -2px;
+  width: 10px;
+  height: 35px;
+  border-radius: 0 0 0 5px;
+  background: orange;
+}
+
+/* 灯笼顶底装饰 */
+.lanterns__item::before,
+.lanterns__item::after {
+  content: "";
+  position: absolute;
+  background: orange;
+  border: 1px solid var(--lantern-accent);
+}
+.lanterns__item::before {
+  top: -7px;
+  left: 29px;
+  width: 60px;
+  height: 12px;
+  border-radius: 5px 5px 0 0;
+  background: linear-gradient(
+    to right,
+    var(--lantern-accent),
+    orange,
+    var(--lantern-accent),
+    orange,
+    var(--lantern-accent)
+  );
+}
+.lanterns__item::after {
+  bottom: -7px;
+  left: 30px;
+  width: 60px;
+  height: 12px;
+  border-radius: 0 0 5px 5px;
+  background: linear-gradient(
+    to right,
+    var(--lantern-accent),
+    orange,
+    var(--lantern-accent),
+    orange,
+    var(--lantern-accent)
+  );
+}
+
+@keyframes swing {
+  0%,
+  100% {
+    transform: rotate(-10deg);
+  }
+  50% {
+    transform: rotate(10deg);
+  }
+}
+
+/* 夜间模式适配 */
+@media (prefers-color-scheme: dark) {
+  .lanterns__box {
+    background: transparent !important;
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .lanterns__box {
+    transform: scale(0.7);
+  }
+  .lanterns__box--right {
+    right: 80px;
+  }
+  .lanterns__box--right-close {
+    right: 5px;
+  }
+  .lanterns__box--left {
+    left: 80px;
+  }
+  .lanterns__box--left-close {
+    left: 5px;
+  }
+}
