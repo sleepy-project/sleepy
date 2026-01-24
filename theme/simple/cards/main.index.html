@@ -1,0 +1,8 @@
+<h1>似了吗?</h1>
+<h3>{{ username }}'s Status: <span id="status">{{ status.name }}</span></h3>
+<p id="additional-info">{{ status.desc | safe }}</p>
+<p id="device-status"></p>
+<p id="last-updated">最后更新: {{ last_updated }}</p>
+<script>
+    // document.getElementById('status').classList.add('{{ status.color }}');
+</script>

@@ -1,0 +1,12 @@
+<div class="console-help">
+    {{ more_text | safe }}
+    <p>> 你可以通过这个页面视奸 <b>{{ username }}</b>。</p>
+    <p>> 可用命令:</p>
+    <p> - <a href="{{ learn_more_link }}" target="_blank">{{ learn_more_text | safe }}</a></p>
+    <p> - <a href="/panel">admin</a></p>
+
+    <p>> 主题选择:</p>
+    {% for theme in available_themes %}
+    <p>- <a href="/?theme={{ theme }}" style="color: rgb(0, 255, 0);">theme {{ theme }}</a></p>
+    {% endfor %}
+</div>

@@ -1,0 +1,268 @@
+:root {
+  --light-bg-rgb: 240, 248, 255;
+  --dark-bg-rgb: 26, 21, 20;
+  --card-alpha: 0.6;
+}
+
+html {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  background-size: cover;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+a {
+  text-decoration: none;
+}
+
+button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+  /* 兼容 WebKit 内核浏览器 */
+  appearance: none;
+  /* 标准属性，提升兼容性 */
+}
+
+button:hover {
+  background: var(--control-bg);
+}
+
+div p {
+  opacity: 0.8;
+}
+#slider {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+}
+
+#slider svg {
+  width: 42px;
+  height: 42px;
+}
+/* 左上右上及链接按钮深浅反色 */
+/* 默认：浅色模式，无滤镜 */
+.theme-aware-icon {
+  filter: invert(0) brightness(1);
+  transition: filter 0.3s ease;
+}
+/* 深色模式：反色 + 轻微提亮 */
+.dark .theme-aware-icon {
+  filter: invert(1) brightness(1.2);
+}
+
+#sliderRange {
+  display: none;
+  position: absolute;
+  border: none;
+  top: 19px;
+  left: 60px;
+  filter: invert(0.8);
+}
+
+.light, .card {
+  background-color: rgba(var(--light-bg-rgb), var(--card-alpha));
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  color: black;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+
+
+.card {
+  border-radius: 30px;
+  padding: 2rem 1rem;
+  margin: 1rem auto;
+  font-size: 1.1em;
+  /* 大屏宽度 */
+  width: 65%;
+  text-align: center;
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border-radius: 10px;
+  position: relative;
+  transition: all 0.2s;
+}
+
+
+/* 较大屏范围 */
+@media (max-width: 1250px) {
+  .card {
+    /* 大屏宽度 */
+    width: 60%;
+  }
+}
+
+/* 较小屏范围 */
+@media (max-width: 750px) {
+  body {
+    touch-action: pan-y;
+  }
+
+  .card {
+    /* 较小屏宽度 */
+    width: 75%;
+  }
+}
+
+/* 小屏范围 */
+@media (max-width: 500px) {
+  .card {
+    /* 小屏宽度 */
+    width: 90%;
+  }
+}
+
+.card:hover {
+  transition: all 0.1s;
+  transform: translateY(-5px);
+  box-shadow: 0 12px 40px rgba(206, 140, 210, 0.2);
+}
+
+.glass {
+  height: 200px;
+}
+
+#last-updated {
+  font-size: 0.8em;
+}
+
+.card p {
+  font-size: 1.1em;
+  margin: 1rem;
+}
+
+.container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  max-width: 100%;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.sleeping {
+  color: gray;
+}
+
+.awake {
+  color: rgb(16, 128, 0);
+}
+
+.error {
+  color: red;
+}
+
+#hitokoto {
+  border-radius: 0.5rem;
+  padding: 0.8rem 1rem;
+}
+
+#hitokoto_text {
+  color: rgba(180, 40, 200, 0.9);
+}
+
+.light a,
+.light .awake {
+  color: rgb(0, 100, 0);
+}
+
+.theme-controls {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 10px;
+  padding: 10px;
+  z-index: 1000;
+}
+
+.opacity-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: white;
+}
+
+.opacity-controls button {
+  background: rgba(255, 255, 255, 0.3);
+  border: none;
+  color: white;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.opacity-controls button:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.light a.sleeping {
+  color: gray !important;
+}
+
+.light a.error {
+  color: red !important;
+}
+
+/* Steam Card */
+.steam_card {
+  text-align: center;
+}
+
+/* 控制栏按钮 */
+button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  transition: 0.3s;
+  color: var(--text-color);
+  -webkit-appearance: none;
+  /* 兼容 WebKit 内核浏览器 */
+  appearance: none;
+  /* 标准属性，提升兼容性 */
+}
+
+button:hover {
+  background: var(--control-bg);
+}
+
+/* 进度条滑块 */
+/* 滑块thumb样式，默认圆形，滑动时高亮波纹 */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+
+  background: #fff;
+  border: 2.5px solid #1976d2;
+  border-radius: 50%;
+  box-shadow: none;
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+  margin-top: -0px; /* 垂直居中：-(thumb高-track高)/2 */
+  transition: box-shadow 0.22s cubic-bezier(.4,0,.2,1), border-color 0.22s cubic-bezier(.4,0,.2,1);
+}
+input[type="range"]:active::-webkit-slider-thumb,
+input[type="range"]:focus::-webkit-slider-thumb {
+  border-color: #1565c0;
+  box-shadow: 0 0 0 12px #1976d23a, 0 2px 8px rgba(25,118,210,0.17);
+}

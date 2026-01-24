@@ -1,0 +1,257 @@
+/* Admin Panel Styles - Blue Theme */
+:root {
+    --primary-color: #0066cc;
+    --primary-hover: #0055aa;
+    --danger-color: #cc0000;
+    --danger-hover: #aa0000;
+    --secondary-color: #00aaff;
+    --secondary-hover: #0099ee;
+    --light-bg: rgba(230, 242, 255, 0.8);
+    --card-shadow: 0 4px 6px rgba(0, 102, 204, 0.2);
+    --border-color: #b3d9ff;
+    --text-color: #003366;
+    --text-light: #0066cc;
+}
+
+body.admin-panel {
+    background-size: cover;
+    padding: 20px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: var(--text-color);
+    background-color: #e6f2ff;
+}
+
+.panel-container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.panel-title {
+    margin: 0;
+    color: white;
+    text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+.panel-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.panel-card {
+    background-color: var(--light-bg);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: var(--card-shadow);
+}
+
+.panel-section {
+    margin-bottom: 30px;
+}
+
+.panel-section:last-child {
+    margin-bottom: 0;
+}
+
+.panel-section-title {
+    margin-top: 0;
+    margin-bottom: 15px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10px;
+    font-weight: 600;
+}
+
+/* Status Selector */
+.status-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.status-item {
+    padding: 10px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 2px solid transparent;
+}
+
+.status-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.status-item.active {
+    border-color: var(--primary-color);
+    font-weight: bold;
+}
+
+/* Device List */
+.device-list {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 15px;
+}
+
+.device-list th, .device-list td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.device-list th {
+    background-color: rgba(0, 0, 0, 0.05);
+    font-weight: bold;
+}
+
+.device-list tr:hover {
+    background-color: rgba(0, 0, 0, 0.03);
+}
+
+/* Buttons */
+.btn {
+    padding: 8px 15px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s;
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: var(--primary-hover);
+}
+
+.btn-danger {
+    background-color: var(--danger-color);
+    color: white;
+}
+
+.btn-danger:hover {
+    background-color: var(--danger-hover);
+}
+
+.btn-secondary {
+    background-color: var(--secondary-color);
+    color: white;
+}
+
+.btn-secondary:hover {
+    background-color: var(--secondary-hover);
+}
+
+/* Toggle Switch */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 24px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 24px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+    background-color: var(--primary-color);
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(26px);
+}
+
+/* Metrics */
+.metrics-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.metric-card {
+    background-color: rgba(179, 217, 255, 0.5);
+    border-radius: 8px;
+    padding: 15px;
+    text-align: center;
+    transition: transform 0.2s;
+    border: 1px solid rgba(0, 102, 204, 0.2);
+}
+
+.metric-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.metric-value {
+    font-size: 24px;
+    font-weight: bold;
+    margin: 10px 0;
+}
+
+.metric-label {
+    color: var(--text-light);
+    font-size: 14px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .panel-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .panel-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .device-list {
+        display: block;
+        overflow-x: auto;
+    }
+
+    .metrics-container {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    }
+}

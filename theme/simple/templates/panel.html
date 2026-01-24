@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>{{ c.page.name }} - 管理面板</title>
+        <meta name="description" content="管理面板" />
+        <link rel="icon" href="{{ c.page.favicon }}" />
+        <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}" />
+        <link rel="stylesheet" href="{{ url_for('static', filename='panel.css') }}" />
+        <link rel="stylesheet" href="{{ url_for('static', filename='panel_plugin_card.css') }}" />
+        <style>
+            table {
+                border-collapse: collapse;
+                width: 100%;
+                margin: 10px 0;
+            }
+
+            th,
+            td {
+                border: 1px solid #ddd;
+                padding: 8px;
+                text-align: left;
+            }
+
+            th {
+                background-color: #f2f2f2;
+            }
+
+            .status-item {
+                display: inline-block;
+                padding: 5px 10px;
+                margin: 5px;
+                border: 1px solid #ccc;
+                cursor: pointer;
+            }
+
+            .status-item.active {
+                font-weight: bold;
+                border: 2px solid #000;
+            }
+
+            .metric-card {
+                display: inline-block;
+                margin: 10px;
+                padding: 10px;
+                border: 1px solid #ccc;
+                text-align: center;
+            }
+
+            .metric-value {
+                font-size: 24px;
+                font-weight: bold;
+            }
+        </style>
+        <script src="{{ url_for('static', filename='panel.js') }}"></script>
+    </head>
+
+    <body>
+        <div class="container">
+            <div class="card">
+                <h1>{{ c.page.name }} 的管理面板</h1>
+                <div>
+                    <button class="btn btn-primary" id="refresh-btn">刷新数据</button>
+                    <a href="/"><button>查看前台</button></a>
+                    <button id="logout-btn">退出登录</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>状态管理</h2>
+                <p>当前状态: <span id="current-status-name">加载中...</span></p>
+                <div id="status-selector"></div>
+            </div>
+
+            <div class="card">
+                <h2>主题设置</h2>
+                <p>当前主题: <span id="current-theme">{{ current_theme }}</span></p>
+                <div id="theme-selector">
+                    {% for theme in available_themes %}
+                    <a href="/panel?theme={{ theme }}">
+                        <div class="status-item {% if current_theme == theme %}active{% endif %}" style="color: black">{{ theme }} 主题</div>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>设备管理</h2>
+                <div style="margin-bottom: 15px">
+                    <button id="clear-devices-btn">清除所有设备</button>
+                    <div>
+                        <input type="checkbox" id="private-mode-toggle" />
+                        <label for="private-mode-toggle">隐私模式</label>
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>设备ID</th>
+                            <th>显示名称</th>
+                            <th>使用状态</th>
+                            <th>应用名称</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="device-list-body"></tbody>
+                </table>
+            </div>
+
+            {% if c.metrics.enabled %}
+            <div class="card">
+                <h2>访问统计</h2>
+                <div id="metrics-container"></div>
+            </div>
+            {% endif %}
+
+            <!-- 插件管理后台卡片 -->
+            {% for id, card in cards.items() %}
+            <div class="card panel-card plugin-card" id="{{ id }}">
+                <div class="panel-section">
+                    <h2 class="panel-section-title">{{ card.title }} <span class="plugin-badge">{{ card.plugin }}</span></h2>
+                    <div class="plugin-card-content">{{ card.content | safe }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </body>
+
+    {{ inject | safe }}
+</html>

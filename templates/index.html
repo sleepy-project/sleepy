@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ env.page.title }}</title>
+    <meta name="description" content="{{ env.page.desc }}">
+    <!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"> -->
+    <link rel="icon" href="{{ env.page.favicon }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
+    <style>
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: -1;
+            background: url('{{ env.page.background }}') no-repeat center center;
+            background-size: cover; 
+            will-change: transform; /* ai让我加上这两行 汗 */
+            transform: translateZ(0); /* Safari 强制开启 GPU 合成，防抖动 */
+        }
+    </style>
+
+</head>
+
+<body>
+    <div class="container">
+        <div class="card light" id="user_status">
+            <h1><ruby>似<rt>sǐ</rt></ruby>了吗?</h1>
+
+            {% if env.page.moonlight %}
+            <!-- (moonlight) 透明度 / 暗色模式 -->
+            {% include "moonlight.html" %}
+            {% endif %}
+
+            <h3><i><b>{{ env.page.user }}'s</b></i> Status:<br><a id="status">{{ status['name'] }}</a></h3>
+            <p id="additional-info">{{ status['desc'] | safe }}</p>
+            <p id="device-status">[设备状态列表]</p>
+
+            {% if env.util.steam_enabled %}
+            <!-- (steam) Steam 状态模块 (iframe) -->
+            {% include "steam.html" %}
+            {% endif %}
+
+            <p id="last-updated">最后更新: {{ last_updated }}</p>
+        </div>
+
+        {% if zhixue %}
+        <!-- (zhixue) 智学网分数 -->
+        {% include "zhixue.html" %}
+        {% endif %}
+
+        <div class="card light" id="more_text">
+            {% if env.page.hitokoto %}
+            <!-- (hitokoto) 一言 -->
+            {% include "hitokoto.html" %}
+            {% endif %}
+            <!-- more_text START -->
+            {{ more_text | safe }}
+            <!-- more_text END -->
+            <p>你可以通过这个页面视奸 <b>{{ env.page.user }}</b>。<br>
+                <a href="{{ env.page.repo }}" target="_blank" style="color: rgb(0, 255, 0);">
+            <!-- 
+                    链接旁边的按钮
+					版权所有 勿删( https://www.iconfont.cn/user/detail?uid=10835226&nid=Cjf7KVUyjUd5
+					 -->
+                    <svg t="1751612617111" class="icon theme-aware-icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="2116" width="16" height="16">
+                        <path
+                            d="M908.572444 107.064889h0.170667l4.152889 4.152889q65.706667 65.706667 65.706667 158.606222 0 92.899556-65.706667 158.606222l-145.180444 145.180445q-14.961778 15.473778-36.750223 15.644444-21.731556 0.227556-37.148444-15.189333-15.36-15.36-15.189333-37.148445 0.170667-21.788444 15.872-36.920889l144.952888-145.009777q35.271111-35.271111 35.271112-85.219556 0-49.891556-35.271112-85.162667-35.271111-35.271111-85.219555-35.271111-49.891556 0-85.219556 35.271111L523.946667 329.784889q-15.246222 15.246222-36.750223 15.189333-21.504 0-36.693333-15.189333-15.189333-15.246222-15.189333-36.750222 0-21.447111 15.189333-36.693334l145.180445-145.123555Q661.333333 45.511111 754.232889 45.511111q89.884444 0 154.339555 61.553778z m-326.769777 326.371555h0.568889l4.096 4.209778q15.189333 15.189333 15.189333 36.693334t-15.189333 36.693333l-75.377778 75.377778q-15.189333 15.189333-36.693334 15.246222-21.504 0-36.750222-15.246222-15.189333-15.189333-15.189333-36.693334t15.189333-36.693333l75.377778-75.377778q15.246222-15.246222 36.693333-15.246222 18.375111 0 32.085334 11.036444z m-288.711111 1.820445q-21.504 0-36.693334 15.189333l-145.180444 145.123556Q45.511111 661.276444 45.511111 754.232889q0 92.899556 65.706667 158.606222Q176.924444 978.488889 269.880889 978.488889q92.899556 0 158.606222-65.706667l145.123556-145.180444q15.246222-15.189333 15.246222-36.693334t-15.246222-36.693333q-15.189333-15.189333-36.693334-15.246222-21.447111 0-36.693333 15.189333L354.986667 839.395556q-35.271111 35.271111-85.162667 35.271111-49.891556 0-85.162667-35.271111-35.271111-35.271111-35.271111-85.162667-0.056889-49.891556 35.214222-85.219556l145.123556-145.180444q15.189333-15.189333 15.189333-36.693333t-15.189333-36.693334q-15.189333-15.189333-36.693333-15.189333z"
+                            p-id="2117"></path>
+                    </svg>
+                    <!-- learn_more START -->
+                    {{ env.page.learn_more | safe }}
+                    <!-- learn_more END -->
+                </a>
+            </p>
+        </div>
+    </div>
+
+    {% if env.page.lantern %}
+    <!-- (lantern) 节日灯笼 -->
+    {% include "lantern.html" %}
+    {% endif %}
+
+    {% if env.page.mplayer %}
+    <!-- (mplayer) 音乐播放器 -->
+    {% include "mplayer.html" %}
+    {% endif %}
+
+    {% if env.page.canvas %}
+    <!-- (canvas) 粒子效果 -->
+    <script src="{{ url_for('static', filename='canvas.js') }}" defer></script>
+    {% endif %}
+
+    <script src="{{ url_for('static', filename='get.js') }}" defer></script>
+
+</body>
+
+</html>

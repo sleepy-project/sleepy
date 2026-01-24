@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>{{ c.page.name }} - 登录</title>
+        <meta name="description" content="登录到管理面板" />
+        <link rel="icon" href="{{ c.page.favicon }}" />
+        <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}" />
+        <link rel="stylesheet" href="{{ url_for('static', filename='panel.css') }}" />
+        <style>
+            body {
+                background: url('{{ c.page.background }}') no-repeat center center fixed;
+                background-size: cover;
+            }
+        </style>
+    </head>
+
+    <body>
+        <div class="login-container">
+            <div class="login-card">
+                <div class="login-form">
+                    <div class="form-group">
+                        <label for="secret">$ sudo admin_panel</label>
+                        <p>Password: <input type="password" id="secret" placeholder="" /><span class="console-cursor">_</span></p>
+                    </div>
+                    <button class="login-btn" onclick="login()">Enter</button>
+                    <p id="error-message" class="error-message">Authentication failed. Try again.</p>
+                </div>
+                <a href="/" class="back-link">$ cd /</a>
+            </div>
+        </div>
+
+        <script src="{{ url_for('static', filename='login.js') }}"></script>
+    </body>
+</html>

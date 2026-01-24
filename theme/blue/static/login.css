@@ -1,0 +1,76 @@
+/* Login Page */
+.login-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+.login-card {
+    width: 350px;
+    padding: 2rem;
+    border-radius: 10px;
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    background-color: rgba(230, 242, 255, 0.8);
+    box-shadow: 0 8px 32px rgba(0, 102, 204, 0.2);
+    text-align: center;
+    border: 1px solid rgba(0, 102, 204, 0.3);
+}
+
+.login-form {
+    margin-top: 20px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+    text-align: left;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    font-size: 16px;
+    box-sizing: border-box;
+}
+
+.login-btn {
+    width: 100%;
+    padding: 10px;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.login-btn:hover {
+    background-color: var(--primary-hover);
+}
+
+.error-message {
+    color: var(--danger-color);
+    margin-top: 10px;
+    display: none;
+}
+
+.back-link {
+    margin-top: 15px;
+    display: block;
+    color: var(--text-light);
+    text-decoration: none;
+}
+
+.back-link:hover {
+    text-decoration: underline;
+}
