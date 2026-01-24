@@ -6,5 +6,5 @@ authors = [{ name = 'Krnl', email = 'nt@siiway.org' }]
 dependencies = []
 
 [tool.sleepy]
-enabled = true
+enabled = false
 dependencies = []
