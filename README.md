@@ -1,5 +1,11 @@
 # Sleepy FastAPI Ver
 
-> Now Backend Only!
+> Backend Only Core!
 
-In Developing...
+In Develop...
+
+## FAQ
+
+Q: Where is my frontend?
+
+A: Provided as a plugin, enabled by default.
