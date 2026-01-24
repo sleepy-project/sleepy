@@ -158,7 +158,6 @@ async function updateCurrentStatus() {
 
 // 更新状态选择器
 function updateStatusSelector() {
-    
     const buttons = document.querySelectorAll('.status-btn');
     buttons.forEach(btn => {
         const statusValue = parseInt(btn.dataset.status);

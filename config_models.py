@@ -177,6 +177,10 @@ class ConfigModel(BaseModel):
     '''
     启用 统计 (没写)
     '''
+    metrics: bool = False
+    '''
+    启用 统计 (没写)
+    '''
 
     # workers: PositiveInt = 2
     # '''
@@ -184,6 +188,7 @@ class ConfigModel(BaseModel):
     # '''
 
     log: _LoggingConfigModel = _LoggingConfigModel()
+    page: _PageConfigModel = _PageConfigModel()
     page: _PageConfigModel = _PageConfigModel()
 
     database: str = 'sqlite:///data.db'
@@ -193,6 +198,16 @@ class ConfigModel(BaseModel):
     - MySQL: `mysql://用户名:密码@主机:端口号/数据库名`
     - 更多: https://docs.sqlalchemy.org.cn/en/20/core/engines.html#backend-specific-urls
     '''
+
+    cache_age: int = 1200
+    '''
+    `main.cache_age`
+    静态资源缓存时间 (秒)
+    - *建议设置为 20 分钟 (1200s)*
+    '''
+
+    
+
 
     cache_age: int = 1200
     '''

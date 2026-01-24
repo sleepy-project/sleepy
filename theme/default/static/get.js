@@ -137,7 +137,6 @@ ${last_updated}
     }
 }
 
-// 全局变量 - 重要：保证所有函数可访问
 let evtSource = null;
 let reconnectInProgress = false;
 let countdownInterval = null;
