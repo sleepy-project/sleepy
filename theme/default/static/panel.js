@@ -65,7 +65,7 @@ async function initPage() {
         }
 
         // 更新UI
-        updateCurrentStatus();
+        await updateCurrentStatus();
         renderDeviceList();
 
 
@@ -88,54 +88,77 @@ function getCookie(name) {
 }
 
 // 更新当前状态显示
-function updateCurrentStatus() {
+async function updateCurrentStatus() {
     const statusName = document.getElementById('current-status-name');
     const statusDesc = document.getElementById('current-status-desc');
-    
+    const statusSelector = document.getElementById('status-selector');
     // 根据状态值显示不同的文本
     let statusText = '未知状态';
     let statusColor = 'red';
     let descText = '';
-    
-    switch(currentStatus) {
-        case 0:
-            statusText = '在线';
-            statusColor = 'green';
-            descText = '用户当前在线';
-            break;
-        case 1:
-            statusText = '离开';
-            statusColor = 'orange';
-            descText = '用户暂时离开';
-            break;
-        case 2:
-            statusText = '离线';
-            statusColor = 'gray';
-            descText = '用户已离线';
-            break;
-        case 3:
-            statusText = '勿扰';
-            statusColor = 'red';
-            descText = '请勿打扰';
-            break;
-        default:
-            statusText = '未知';
-            statusColor = 'red';
-            descText = '未知状态';
+    let statusList = []; // 将用于渲染按钮
+
+    try {
+        const response = await fetch('/api/status/all', {
+            method: 'GET',
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            statusList = data.status_list || [];
+            const currentItem = statusList.find(item => item.id === currentStatus);
+            if (currentItem) {
+                statusText = currentItem.name || statusText;
+                descText = currentItem.desc || '';
+                statusColor = currentItem.color || statusColor;
+            }
+
+        }
+    } catch (error) {
+        console.error('获取状态列表失败:', error);
     }
-    
+
+    // 如果API失败，使用硬编码fallback
+    if (statusList.length === 0) {
+        statusList = [
+            { id: 0, name: '在线', color: 'green', desc: '用户当前在线' },
+            { id: 1, name: '离开', color: 'orange', desc: '用户暂时离开' },
+            { id: 2, name: '离线', color: 'gray', desc: '用户已离线' },
+            { id: 3, name: '勿扰', color: 'red', desc: '请勿打扰' }
+        ];
+        const currentItem = statusList.find(item => item.id === currentStatus);
+        if (currentItem) {
+            statusText = currentItem.name;
+            statusColor = currentItem.color;
+            descText = currentItem.desc;
+        }
+    }
     statusName.textContent = statusText;
     statusName.style.color = statusColor;
     if (statusDesc) {
         statusDesc.textContent = descText;
     }
-
+    if (statusSelector) {
+        statusSelector.innerHTML = '';
+        statusList.forEach(status => {
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-secondary status-btn';
+            btn.dataset.status = status.id;
+            btn.textContent = status.name;
+            btn.style.marginRight = '10px'; // 可选：添加一些间距
+            btn.addEventListener('click', function() {
+                setStatus(parseInt(this.dataset.status));
+            });
+            statusSelector.appendChild(btn);
+        });
+    }
     // 更新状态选择按钮
     updateStatusSelector();
 }
 
 // 更新状态选择器
 function updateStatusSelector() {
+    
     const buttons = document.querySelectorAll('.status-btn');
     buttons.forEach(btn => {
         const statusValue = parseInt(btn.dataset.status);

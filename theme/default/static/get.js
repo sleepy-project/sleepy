@@ -8,7 +8,7 @@ import {
     checkVercelDeploy
 } from './utils.js';
 
-function updateDeviceStatus(data) {
+async function updateDeviceStatus(data) {
     /*
     正常更新状态使用
     data: api / events 返回数据
@@ -22,33 +22,49 @@ function updateDeviceStatus(data) {
         let statusText = '未知状态';
         let statusColor = 'error';
         let statusDesc = '';
-        
+        const response = await fetch('/api/status/all', {
+                method: 'GET',
+            });
+        if (response.ok) {
+            const StatusData = await response.json();
+            const statusList = StatusData.status_list || [];
+            for (let item of statusList) {
+                if (item.id === data.status) {
+                    statusText = item.name || statusText;
+                    statusDesc = item.desc || '';
+                    statusColor = item.color || statusColor;
+                    break;
+                }
+            }
+        }
+        else {
         // 根据状态值设置显示文本和颜色
-        switch(data.status) {
-            case 0:
-                statusText = '在线';
-                statusColor = 'awake';
-                statusDesc = '用户当前在线';
-                break;
-            case 1:
-                statusText = '离开';
-                statusColor = 'away';
-                statusDesc = '用户暂时离开';
-                break;
-            case 2:
-                statusText = '离线';
-                statusColor = 'sleeping';
-                statusDesc = '用户已离线';
-                break;
-            case 3:
-                statusText = '勿扰';
-                statusColor = 'busy';
-                statusDesc = '请勿打扰';
-                break;
-            default:
-                statusText = '未知';
-                statusColor = 'error';
-                statusDesc = '未知状态';
+            switch(data.status) {
+                case 0:
+                    statusText = '在线';
+                    statusColor = 'awake';
+                    statusDesc = '用户当前在线';
+                    break;
+                case 1:
+                    statusText = '离开';
+                    statusColor = 'away';
+                    statusDesc = '用户暂时离开';
+                    break;
+                case 2:
+                    statusText = '离线';
+                    statusColor = 'sleeping';
+                    statusDesc = '用户已离线';
+                    break;
+                case 3:
+                    statusText = '勿扰';
+                    statusColor = 'busy';
+                    statusDesc = '请勿打扰';
+                    break;
+                default:
+                    statusText = '未知';
+                    statusColor = 'error';
+                    statusDesc = '未知状态';
+            }
         }
         
         statusElement.textContent = statusText;
@@ -234,7 +250,7 @@ function setupEventSource() {
     };
 
     // 监听更新事件
-    evtSource.addEventListener('update', function (event) {
+    evtSource.addEventListener('update', async function (event) {
         lastEventTime = Date.now(); // 更新最后收到消息的时间
 
         try {
@@ -245,7 +261,7 @@ function setupEventSource() {
             if (event.type === 'connected' || event.type === 'refresh' || event.type === 'status_changed') {
                 // 这些事件直接包含状态数据
                 if (data && data.status !== undefined) {
-                    updateDeviceStatus({
+                    await updateDeviceStatus({
                         status: data.status,
                         devices: data.devices || [],
                         last_updated: data.last_updated || data.time || Date.now() / 1000
@@ -349,7 +365,7 @@ async function fetchCurrentStatus() {
         console.log('[Update] 获取到状态数据:', data);
         
         // 更新设备状态
-        updateDeviceStatus({
+        await updateDeviceStatus({
             status: data.status,
             devices: data.devices || [],
             last_updated: data.last_updated || data.time || Date.now() / 1000
@@ -409,7 +425,7 @@ async function update() {
 }
 
 // 初始化SSE连接或回退到轮询
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', async function () {
     try {
         // 首先获取初始状态和配置
         fetch('/api/query', { timeout: 10000 })
@@ -419,7 +435,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 return response.json();
             })
-            .then((data) => {
+            .then(async (data) => {
                 // 保存元数据（从响应中提取配置）
                 window.metadata = {
                     status: {
@@ -430,7 +446,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 };
                 
                 // 更新初始状态
-                updateDeviceStatus({
+                await updateDeviceStatus({
                     status: data.status,
                     devices: data.devices || [],
                     last_updated: data.last_updated || data.time || Date.now() / 1000

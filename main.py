@@ -25,7 +25,6 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, File
 from fastapi.encoders import jsonable_encoder
 from starlette.templating import Jinja2Templates as Jinja2Templates  # noqa
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from starlette.templating import _TemplateResponse as TemplateResponse
 
 from sqlmodel import create_engine, SQLModel, Session, select
 from pydantic import BaseModel, model_validator
@@ -39,6 +38,7 @@ from werkzeug.security import safe_join
 import schedule
 
 from config import config as c
+from config_models import _StatusItemModel
 import errors as e
 import models as m
 import utils as u
@@ -1011,6 +1011,9 @@ status_router = APIRouter(
 
 class GetStatusResponse(BaseModel):
     status: int | None = 0
+    
+class GetAllStatusResponse(BaseModel):
+    status_list: list[_StatusItemModel] = []
 
 async def _get_status(sess: SessionDep):
     meta = sess.exec(select(m.Metadata)).first()
@@ -1020,10 +1023,17 @@ async def _get_status(sess: SessionDep):
         }
     else:
         raise e.APIUnsuccessful(hc.HTTP_500_INTERNAL_SERVER_ERROR, 'Cannot read metadata')
+    
+async def _get_all_status():
+    return {"status_list": c.page.status_list}
 
 @status_router.get('/', response_model=GetStatusResponse)
 async def get_status(sess: SessionDep):
     return await _get_status(sess)
+
+@status_router.get('/all', response_model=GetAllStatusResponse)
+async def get_all_status(sess: SessionDep):
+    return await _get_all_status()
 
 class SetStatusRequest(BaseModel):
     status: int

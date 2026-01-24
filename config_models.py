@@ -4,12 +4,58 @@ from pydantic import BaseModel, PositiveInt
 import typing as t
 
 # region user-config
+class _StatusItemModel(BaseModel):
+    '''
+    状态列表设置 (`status.status_list`) 中的项
+    '''
 
+    id: int = -1
+    '''
+    状态索引 (id)
+    - *应由 `config.Config.__init__()` 动态设置*
+    '''
+
+    name: str
+    '''
+    `status.status_list[*].name`
+    状态名称
+    '''
+
+    desc: str
+    '''
+    `status.status_list[*].desc`
+    状态描述
+    '''
+
+    color: str = 'awake'
+    '''
+    `status.status_list[*].color`
+    状态颜色 \n
+    对应 `static/style.css` 中的 `.sleeping` `.awake` 等类 (可自行前往修改)
+    '''
 class _PageConfigModel(BaseModel):
     '''
     页面内容配置 (`page`)
     '''
 
+    status_list: list[_StatusItemModel] = [
+        _StatusItemModel(
+            name='活着',
+            desc='目前在线，可以通过任何可用的联系方式联系本人。',
+            color='awake'
+        ),        
+        _StatusItemModel(
+            name='91着',
+            desc='目前在91，可以通过91看到本人。',
+            color='awake'
+        ),
+        _StatusItemModel(
+            name='似了',
+            desc='睡似了或其他原因不在线，紧急情况请使用电话联系。',
+            color='sleeping'
+        )
+    ]
+    
     name: str = 'User'
     '''
     `page.name`

@@ -67,3 +67,5 @@ except Exception as e:
 
 # ----- mix configs -----
 config = ConfigModel(**u.deep_merge_dict(config_env, config_yaml, config_toml, config_json))
+for i in range(len(config.page.status_list)):
+    config.page.status_list[i].id = i
