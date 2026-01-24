@@ -165,7 +165,7 @@ class PluginManager:
                 l.error("Missing [project] table")
                 return None
 
-            tool_sleepy = pyproject.tool.get("sleepy", {}).get("plugin", {}) if pyproject.tool else {}
+            tool_sleepy = pyproject.tool.get("sleepy", {}) if pyproject.tool else {}
 
             authors = project.get('authors')
 
