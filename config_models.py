@@ -45,11 +45,6 @@ class _PageConfigModel(BaseModel):
             color='awake'
         ),        
         _StatusItemModel(
-            name='91着',
-            desc='目前在91，可以通过91看到本人。',
-            color='awake'
-        ),
-        _StatusItemModel(
             name='似了',
             desc='睡似了或其他原因不在线，紧急情况请使用电话联系。',
             color='sleeping'
