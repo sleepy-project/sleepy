@@ -539,6 +539,10 @@ async def init_auth(sess: SessionDep, req: InitRequest):
     sess.commit()
     return {'initialized': True}
 
+@app.get('/api/init', response_model=InitResponse, name='Check auth initialization')
+async def check_init_auth(sess: SessionDep):
+    """查询是否已初始化，供前端自动跳转使用"""
+    return {'initialized': _is_auth_initialized(sess)}
 
 @auth_router.post('/login', response_model=AuthTokensResponse, name='Login and issue auth tokens')
 async def auth_login(sess: SessionDep, req: AuthLoginRequest):
