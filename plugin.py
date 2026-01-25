@@ -3,12 +3,14 @@
 import os
 import sys
 import importlib.util
-from typing import Dict, List, Callable, Any, Optional
-from dataclasses import dataclass
+from typing import Dict, List, Callable, Any, Optional, Union
+from dataclasses import dataclass, field
 
 from loguru import logger as l
 from fastapi import FastAPI, APIRouter, Response, Request
 from pyproject_parser import PyProject
+from packaging.specifiers import SpecifierSet
+from packaging.version import Version, InvalidVersion
 
 import utils as u
 
@@ -21,16 +23,13 @@ class PluginMetadata:
     description: str = ""
     author: str = ""
     enabled: bool = True
-    dependencies: List[str] | None = None
-
-    def __post_init__(self):
-        if self.dependencies is None:
-            self.dependencies = []
+    # 变更: 依赖统一存储为字典 { "plugin_name": "version_spec" }
+    # 如果没有版本限制，值为 "*"
+    dependencies: Dict[str, str] = field(default_factory=dict)
 
 
 class PluginRoute:
     """插件路由包装器"""
-
     def __init__(self, path: str, endpoint: Callable, methods: List[str], override: bool = False, **kwargs):
         self.path = path
         self.endpoint = endpoint
@@ -70,14 +69,7 @@ class PluginBase:
         """
         if methods is None:
             methods = ["GET"]
-
-        route = PluginRoute(
-            path=path,
-            endpoint=endpoint,
-            methods=methods,
-            override=override,
-            **kwargs
-        )
+        route = PluginRoute(path=path, endpoint=endpoint, methods=methods, override=override, **kwargs)
         self._routes.append(route)
         l.debug(f'Plugin {self.metadata.name} registered route: {path} {methods} (override={override})')
 
@@ -158,19 +150,61 @@ class PluginManager:
             if project is None:
                 l.error("Missing [project] table")
                 return None
+            
             tool_sleepy = pyproject.tool.get("sleepy", {}) if pyproject.tool else {}
             authors = project.get('authors')
+            
+            raw_deps = tool_sleepy.get("dependencies", [])
+            normalized_deps: Dict[str, str] = {}
+
+            if isinstance(raw_deps, list):
+                # 兼容旧格式: ["plugin_a", "plugin_b"] -> {"plugin_a": "*", "plugin_b": "*"}
+                for dep in raw_deps:
+                    if isinstance(dep, str):
+                        normalized_deps[dep] = "*"
+            elif isinstance(raw_deps, dict):
+                # 新格式: { "plugin_a": ">=1.0.0" }
+                normalized_deps = {k: str(v) for k, v in raw_deps.items()}
+
             return PluginMetadata(
                 name=project.get('name') or plugin_name,
                 version=str(project.get('version')) or "0.0.0",
                 description=project.get('description') or "",
                 author=authors[0].get('name') or "" if authors else "",
                 enabled=tool_sleepy.get("enabled", True),
-                dependencies=tool_sleepy.get("dependencies", [])
+                dependencies=normalized_deps
             )
         except Exception as e:
             l.error(f'Failed to parse pyproject.toml for {plugin_name}: {e}')
             return None
+
+    def _check_dependencies_met(self, plugin_name: str, dependencies: Dict[str, str]) -> bool:
+        """检查依赖是否存在且版本符合要求"""
+        for dep_name, spec_str in dependencies.items():
+            # 1. 检查依赖是否已加载
+            if dep_name not in self.plugins:
+                l.debug(f'Plugin {plugin_name} missing dependency: {dep_name}')
+                return False
+            
+            # 2. 检查版本
+            if spec_str == "*":
+                continue
+
+            target_plugin = self.plugins[dep_name]
+            target_version_str = target_plugin.metadata.version
+            
+            try:
+                target_version = Version(target_version_str)
+                spec = SpecifierSet(spec_str)
+                
+                if not spec.contains(target_version):
+                    l.error(f'Plugin {plugin_name} requires {dep_name} {spec_str}, but found {target_version_str}')
+                    return False
+            except InvalidVersion:
+                l.warning(f'Could not parse version for dependency check: {dep_name}={target_version_str} (req: {spec_str})')
+                return False
+
+        return True
 
     def load_plugin(self, plugin_name: str) -> bool:
         metadata = self.load_metadata(plugin_name)
@@ -178,10 +212,12 @@ class PluginManager:
         if not metadata.enabled:
             l.info(f'Plugin {plugin_name} is disabled, skipping')
             return False
-        for dep in metadata.dependencies or []:
-            if dep not in self.plugins:
-                l.error(f'Plugin {plugin_name} depends on {dep}, but it is not loaded')
-                return False
+
+        # 在加载时进行最终依赖检查
+        if not self._check_dependencies_met(plugin_name, metadata.dependencies):
+             l.error(f'Plugin {plugin_name} cannot be loaded due to missing or incompatible dependencies')
+             return False
+
         plugin_path = os.path.join(self.plugin_dir, plugin_name)
         init_file = os.path.join(plugin_path, '__init__.py')
         try:
@@ -216,9 +252,13 @@ class PluginManager:
         if not plugin_names:
             l.info('No plugins found')
             return
+        
         l.info(f'Found {len(plugin_names)} plugin(s): {", ".join(plugin_names)}')
+        
         loaded = set()
         remaining = set(plugin_names)
+        
+        # 拓扑排序加载
         while remaining:
             progress = False
             for plugin_name in list(remaining):
@@ -226,14 +266,22 @@ class PluginManager:
                 if not metadata:
                     remaining.remove(plugin_name)
                     continue
-                deps_loaded = all(dep in loaded for dep in metadata.dependencies) if metadata.dependencies else True
-                if deps_loaded:
+                
+                # 检查所有依赖是否已经存在于 'loaded' 集合中
+                # 注意：这里我们只检查依赖的名称是否已加载，详细的版本检查在 load_plugin 内部进行
+                # 这样可以确保如果 A 依赖 B>=2.0，而 B(1.0) 已加载，则 A 会尝试加载然后在 load_plugin 中报错失败
+                deps_names = metadata.dependencies.keys()
+                deps_ready = all(dep in loaded for dep in deps_names)
+                
+                if deps_ready:
                     if self.load_plugin(plugin_name):
                         loaded.add(plugin_name)
+                    # 即使加载失败，也从 remaining 中移除，避免死循环
                     remaining.remove(plugin_name)
                     progress = True
+            
             if not progress:
-                l.error(f'Cannot load plugins due to unresolved dependencies: {remaining}')
+                l.error(f'Cannot load plugins due to unresolved dependencies or cycles: {remaining}')
                 break
 
     def _remove_existing_route(self, app: FastAPI, path: str, methods: List[str]):
@@ -370,5 +418,4 @@ class PluginManager:
         return self._overridden_routes.copy()
 
 
-# 全局插件管理器实例
 plugin_manager = PluginManager()
