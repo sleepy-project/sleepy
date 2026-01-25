@@ -7,4 +7,5 @@ dependencies = []
 
 [tool.sleepy]
 enabled = true
-dependencies = []
+[tool.sleepy.dependencies]
+device-auth = ">=1.0.0"

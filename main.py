@@ -436,7 +436,7 @@ def _device_hash(device_uid: str) -> str:
     return sha256(device_uid.encode('utf-8', errors='xmlcharrefreplace')).hexdigest()
 
 
-def _create_token(
+def create_token(
     sess: Session,
     prefix: str,
     device_hash: str,
@@ -444,6 +444,9 @@ def _create_token(
     *,
     login_type: str | None = None
 ):
+    """
+    Exported token creation function for plugins
+    """
     token_value = str(uuid())
     expire_ts: float | None = None
     if expire_delta:
@@ -458,11 +461,15 @@ def _create_token(
         token=token_value,
         expire=expire_ts or 0.0
     ))
-    l.info(f'Generated new {token_type} token {sha256(token_value.encode('utf-8'), usedforsecurity=False).hexdigest()} (sha256), expires: {expire_ts or 0.0}')
+    l.info(f'Generated new {token_type} token {sha256(token_value.encode("utf-8"), usedforsecurity=False).hexdigest()} (sha256), expires: {expire_ts or 0.0}')
     return token_value, expire_ts
 
 
 def _clear_device_tokens(sess: Session, device_hash: str):
+    """
+    Internal use for clearing web/dev sessions. 
+    (Device plugins should implement their own clearing logic or reuse this carefully)
+    """
     def _tokens_with_prefix(prefix: str) -> list[m.TokenData]:
         return list(sess.exec(select(m.TokenData).where(m.TokenData.type.startswith(f'{prefix}:'))).all())
 
@@ -478,15 +485,18 @@ def _issue_full_session(sess: Session, device_uid: str | None, login_type: str |
         raise e.APIUnsuccessful(hc.HTTP_403_FORBIDDEN, 'Dev token issuance disabled')
     identifier = device_uid or resolved_login_type
     device_hash = _device_hash(identifier)
+    
+    # Clears previous tokens for this web/dev session
     _clear_device_tokens(sess, device_hash)
-    access_token, expires_at = _create_token(
+    
+    access_token, expires_at = create_token(
         sess,
         AUTH_ACCESS_PREFIX,
         device_hash,
         timedelta(minutes=c.auth_access_token_expires_minutes),
         login_type=resolved_login_type
     )
-    refresh_token, _ = _create_token(
+    refresh_token, _ = create_token(
         sess,
         AUTH_REFRESH_PREFIX,
         device_hash,
@@ -506,7 +516,7 @@ def _issue_access_from_refresh(sess: Session, refresh_record: m.TokenData) -> Au
     _, login_type, device_hash = _token_parts(refresh_record.type)
     if not device_hash:
         raise e.APIUnsuccessful(hc.HTTP_401_UNAUTHORIZED, 'Malformed refresh token')
-    access_token, expires_at = _create_token(
+    access_token, expires_at = create_token(
         sess,
         AUTH_ACCESS_PREFIX,
         device_hash,
@@ -522,7 +532,6 @@ def _issue_access_from_refresh(sess: Session, refresh_record: m.TokenData) -> Au
         expires_at=expires_at,
         type=login_type
     )
-
 
 @app.post('/api/init', response_model=InitResponse, name='Initialize auth secret')
 async def init_auth(sess: SessionDep, req: InitRequest):
@@ -586,13 +595,20 @@ async def auth_refresh(sess: SessionDep, req: AuthRefreshRequest):
 
 
 class TokenDep:
+    """
+    Base Token Dependency.
+    Validates token existence, expiration, and allowed login types (e.g., 'web', 'dev').
+    
+    Refactor Note: Device-specific hash validation has been removed from here.
+    Plugins needing specific validations (like matching Device ID) should wrap this 
+    or implement additional checks using the returned TokenData.
+    """
     def __init__(
         self,
         allowed_token_types: tuple[str, ...] | None = None,
         *,
         throw: bool = True,
-        allowed_login_types: tuple[str, ...] | None = None,
-        device_id: str | None = None
+        allowed_login_types: tuple[str, ...] | None = None
     ):
         self.allowed_token_types = allowed_token_types or (AUTH_ACCESS_PREFIX,)
         if allowed_login_types and not DEV_LOGIN_ALLOWED:
@@ -600,7 +616,6 @@ class TokenDep:
         else:
             self.allowed_login_types = allowed_login_types
         self.throw = throw
-        self.device_id = device_id
 
     def __call__(
         self,
@@ -633,23 +648,6 @@ class TokenDep:
                 if self.allowed_login_types and login_type not in self.allowed_login_types:
                     l.debug(f'Token login type {login_type} is not allowed in {self.allowed_login_types}')
                 else:
-                    if self.device_id:
-                        if login_type in ('web', 'dev'):
-                            pass
-                        elif login_type == 'device':
-                            token_device_hash = _token_device_hash(info.type)
-                            expected_device_hash = _device_hash(self.device_id)
-                            if token_device_hash != expected_device_hash:
-                                l.debug(f'Device token cannot access device {self.device_id}')
-                                if self.throw:
-                                    raise e.APIUnsuccessful(hc.HTTP_403_FORBIDDEN, 'Unauthorized for this device')
-                                return None
-                        else:
-                            l.debug(f'Unknown login type {login_type} for device access')
-                            if self.throw:
-                                raise e.APIUnsuccessful(hc.HTTP_403_FORBIDDEN, 'Invalid token type')
-                            return None
-
                     info.last_active = now_ts
                     sess.add(info)
                     sess.commit()

@@ -1,6 +1,7 @@
 # coding: utf-8
 
 import typing as t
+import sys
 from time import time
 from uuid import uuid4 as uuid, UUID
 
@@ -9,25 +10,24 @@ from sqlmodel import select, Session
 from pydantic import BaseModel
 from loguru import logger as l
 
-from plugin import PluginBase, PluginMetadata
+from plugin import PluginBase, PluginMetadata, plugin_manager
 import models as m
 import errors as e
 
 # Importing shared resources from main
 from main import (
     SessionDep, TokenDep, manager, engine, sleepy_token_header,
-    _issue_full_session, _clear_device_tokens, _device_hash, _token_login_type
+    _device_hash, _token_login_type
 )
 
+device_auth = sys.modules.get('plugins.device-auth')
 
 # region Models
-
 class CreateDeviceRequest(BaseModel):
     name: str
     status: str | None = None
     using: bool | None = None
     fields: dict | None = None
-
 
 class CreateDeviceResponse(BaseModel):
     id: str
@@ -36,17 +36,14 @@ class CreateDeviceResponse(BaseModel):
     refresh_token: UUID
     expires_at: float | None = None
 
-
 class UpdateDeviceRequest(BaseModel):
     name: str | None = None
     status: str | None = None
     using: bool | None = None
     fields: dict | None = None
 
-
 class GetDevicesResponse(BaseModel):
     devices: list[m.DeviceData]
-
 # endregion Models
 
 
@@ -56,13 +53,19 @@ class Plugin(PluginBase):
         self._register_http_routes()
 
     def on_load(self):
-        l.info(f'{self.metadata.name} loaded')
+        global device_auth
+        if not device_auth:
+             device_auth = sys.modules.get('plugins.device-auth')
+
+        if not device_auth:
+             device_auth = sys.modules.get('plugins.device_auth')
+
+        if not device_auth:
+             l.error("device-auth plugin is required but not found in sys.modules!")
+        else:
+             l.info(f'{self.metadata.name} loaded')
 
     def setup_routes(self, app: FastAPI):
-        """
-        Override setup_routes to register WebSocket endpoints, 
-        as add_route typically handles API routes.
-        """
         app.add_api_websocket_route('/api/devices/{device_id}', self.websocket_device)
         l.debug(f'Plugin {self.metadata.name} registered websocket: /api/devices/{{device_id}}')
 
@@ -135,21 +138,20 @@ class Plugin(PluginBase):
 
         with Session(engine) as sess:
             try:
-                token_dep = TokenDep(
-                    allowed_login_types=('web', 'dev', 'device'),
-                    device_id=device_id,
-                    throw=True
-                )
+                if not device_auth:
+                    l.error('device-auth module missing during websocket connection')
+                    await ws.close(code=1011, reason='Server dependency error')
+                    return
                 
-                # Manually invoking TokenDep logic since this is a WS handler
-                token_info = token_dep(
+                verifier = device_auth.DeviceTokenVerifier(device_id=device_id)
+                
+                token_info = verifier(
                     sess=sess,
                     token_value=token_value,
                     authorization=None
                 )
 
                 if not token_info:
-                    l.warning(f'WebSocket connection to device {device_id} rejected: invalid token')
                     await ws.close(code=1008, reason='Invalid token')
                     return
 
@@ -238,9 +240,11 @@ class Plugin(PluginBase):
         if meta:
             meta.last_updated = time()
         sess.commit()
-        
-        # Accessing private auth helper from main
-        tokens = _issue_full_session(sess, device_id, 'device')
+
+        if not device_auth:
+            raise e.APIUnsuccessful(hc.HTTP_500_INTERNAL_SERVER_ERROR, 'Device auth plugin missing')
+
+        tokens = device_auth.issue_device_session(sess, device_id)
         
         await manager.evt_broadcast('device_added', {
             'id': device_id,
@@ -265,10 +269,11 @@ class Plugin(PluginBase):
         token_value: t.Annotated[str | None, Security(sleepy_token_header)] = None,
         authorization: t.Annotated[str | None, Header(include_in_schema=False)] = None
     ):
-        TokenDep(
-            allowed_login_types=('web', 'dev', 'device'),
-            device_id=device_id
-        )(sess, token_value, authorization)
+        if not device_auth:
+            raise e.APIUnsuccessful(hc.HTTP_500_INTERNAL_SERVER_ERROR, 'Device auth plugin missing')
+
+        verifier = device_auth.DeviceTokenVerifier(device_id=device_id)
+        verifier(sess, token_value, authorization)
 
         device = sess.get(m.DeviceData, device_id)
         if device:
@@ -304,12 +309,14 @@ class Plugin(PluginBase):
     ):
         device = sess.get(m.DeviceData, device_id)
         if device:
-            device_hash = _device_hash(device.id)
             sess.delete(device)
             meta = sess.exec(select(m.Metadata)).first()
             if meta:
                 meta.last_updated = time()
-            _clear_device_tokens(sess, device_hash)
+            
+            if device_auth:
+                device_auth.clear_device_tokens(sess, device_id)
+            
             sess.commit()
             await manager.evt_broadcast('device_deleted', {'id': device_id})
         return
@@ -325,7 +332,8 @@ class Plugin(PluginBase):
     ):
         devices = sess.exec(select(m.DeviceData)).all()
         for d in devices:
-            _clear_device_tokens(sess, _device_hash(d.id))
+            if device_auth:
+                device_auth.clear_device_tokens(sess, d.id)
             sess.delete(d)
         meta = sess.exec(select(m.Metadata)).first()
         if meta:
