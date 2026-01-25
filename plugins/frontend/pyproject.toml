@@ -7,4 +7,7 @@ dependencies = []
 
 [tool.sleepy]
 enabled = true
-dependencies = []
+
+[tool.sleepy.dependencies]
+main-status = ">=1.0.0"
+device-status = ">=1.0.0"
