@@ -69,6 +69,7 @@ class PluginBase:
         self.router: Optional[APIRouter] = None
         self._routes: List[PluginRoute] = []
         self._mounts: List[PluginMount] = []
+        self._cli_commands: List[CliCommand] = [] 
 
     def add_route(
         self,
