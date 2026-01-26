@@ -326,6 +326,27 @@ class PluginManager:
         """
         为所有插件设置路由和挂载
         """
+
+        async def get_plugin_metadata_endpoint(plugin_id: str):
+            """获取指定插件的元数据 (Name, Version, Description, Author)"""
+            info = self.get_plugin_info(plugin_id)
+            if not info:
+                return Response(status_code=404, content="Plugin not found")
+            return {
+                "name": info["name"],
+                "version": info["version"],
+                "description": info["description"],
+                "author": info["author"]
+            }
+
+        app.add_api_route(
+            "/api/plugin/{plugin_id}/info",
+            get_plugin_metadata_endpoint,
+            methods=["GET"],
+            tags=["System"]
+        )
+        l.info("Registered system route: /api/plugin/{plugin_id}/info")
+
         for plugin_name, plugin in self.plugins.items():
             try:
                 if plugin.router:
