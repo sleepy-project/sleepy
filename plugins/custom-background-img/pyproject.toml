@@ -1,0 +1,10 @@
+[project]
+name = "custom-background-img"
+version = "1.0.0"
+description = "Custom background image plugin"
+authors = [{ name = "Krnl", email = "nt@siiway.org" }]
+dependencies = []
+
+[tool.sleepy]
+enabled = true
+dependencies = []
