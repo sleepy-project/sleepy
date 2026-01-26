@@ -1,6 +1,6 @@
 [project]
 name = "device-status"
-version = "1.0.1"
+version = "1.1.0"
 description = "Handles device management and websocket connections"
 authors = [{ name = "Krnl", email = "nt@siiway.org" }]
 dependencies = []
@@ -8,4 +8,4 @@ dependencies = []
 [tool.sleepy]
 enabled = true
 [tool.sleepy.dependencies]
-device-auth = ">=1.0.0"
+device-auth = ">=1.1.0"

@@ -20,6 +20,7 @@ from uuid import UUID
 from typing import Annotated
 
 from fastapi import Security, Header, status as hc
+from pydantic import BaseModel
 from sqlmodel import Session, select
 from loguru import logger as l
 
@@ -52,6 +53,11 @@ class Plugin(PluginBase):
 
     # No routes to register, this plugin provides services to other plugins
 
+class AccessTokenResponse(BaseModel):
+    token: UUID
+    expires_at: float | None = None
+    type: str = 'device'
+
 def clear_device_tokens(sess: Session, device_id: str):
     """
     Clears all tokens (access and refresh) associated with a specific device ID.
@@ -65,6 +71,38 @@ def clear_device_tokens(sess: Session, device_id: str):
     for tk in candidates:
         if _token_device_hash(tk.type) == device_hash:
             sess.delete(tk)
+
+def clear_device_access_tokens_only(sess: Session, device_id: str):
+    """
+    Clears ONLY Access tokens, keeping Refresh tokens alive.
+    """
+    device_hash = _device_hash(device_id)
+    candidates = sess.exec(select(m.TokenData).where(m.TokenData.type.startswith(f'{AUTH_ACCESS_PREFIX}:'))).all()
+    for tk in candidates:
+        if _token_device_hash(tk.type) == device_hash:
+            sess.delete(tk)
+
+def issue_device_access_token_only(sess: Session, device_id: str) -> AccessTokenResponse:
+    """
+    Issues ONLY a new Access token.
+    """
+    device_hash = _device_hash(device_id)
+    
+    clear_device_access_tokens_only(sess, device_id)
+    
+    access_token, expires_at = create_token(
+        sess,
+        AUTH_ACCESS_PREFIX,
+        device_hash,
+        timedelta(minutes=c.auth_access_token_expires_minutes),
+        login_type='device'
+    )
+    sess.commit()
+    
+    return AccessTokenResponse(
+        token=UUID(access_token),
+        expires_at=expires_at
+    )
 
 def issue_device_session(sess: Session, device_id: str) -> AuthTokensResponse:
     """

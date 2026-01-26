@@ -59,6 +59,12 @@ class UpdateDeviceRequest(BaseModel):
 
 class GetDevicesResponse(BaseModel):
     devices: list[m.DeviceData]
+
+class AccessTokenResponse(BaseModel):
+    token: UUID
+    expires_at: float | None = None
+    type: str = 'device'
+
 # endregion Models
 
 
@@ -121,6 +127,15 @@ class Plugin(PluginBase):
             response_model=CreateDeviceResponse, # 复用 CreateDeviceResponse，因为它包含 token 字段
             tags=['devices'],
             name='Reset Device Token'
+        )
+
+        self.add_route(
+            path='/api/devices/{device_id}/reset-access-token',
+            endpoint=self.reset_device_access_token,
+            methods=['POST'],
+            response_model=AccessTokenResponse, 
+            tags=['devices'],
+            name='Reset Device Access Token Only'
         )
 
         self.add_route(
@@ -356,6 +371,31 @@ class Plugin(PluginBase):
             'token': tokens.token,
             'refresh_token': tokens.refresh_token,
             'expires_at': tokens.expires_at
+        }
+    
+    async def reset_device_access_token(
+        self,
+        sess: SessionDep,
+        device_id: str,
+        _: t.Annotated[m.TokenData, Security(TokenDep(allowed_login_types=('web', 'dev')))]
+    ):
+        device = sess.get(m.DeviceData, device_id)
+        if not device:
+            raise e.APIUnsuccessful(hc.HTTP_404_NOT_FOUND, 'Device not found')
+
+        if not device_auth:
+             raise e.APIUnsuccessful(hc.HTTP_500_INTERNAL_SERVER_ERROR, 'Device auth plugin missing')
+        
+        result = device_auth.issue_device_access_token_only(sess, device_id)
+        
+        device.last_updated = time()
+        sess.add(device)
+        sess.commit()
+
+        return {
+            'token': result.token,
+            'expires_at': result.expires_at,
+            'type': result.type
         }
 
     async def delete_device(
