@@ -1,9 +1,17 @@
-FROM python:3.13
+FROM python:3.12-slim-trixie
 
-WORKDIR /app
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+WORKDIR /sleepy
+
+COPY pyproject.toml uv.lock ./
+
+RUN ["uv", "sync"]
 
 COPY . .
 
-RUN pip install --no-cache-dir -r requirements.txt
+EXPOSE 9010
 
-CMD ["python", "server.py"]
+VOLUME ["/sleepy/data"]
+
+CMD ["uv", "run", "main.py"]

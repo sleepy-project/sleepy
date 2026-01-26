@@ -1,0 +1,15 @@
+services:
+  sleepy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "9010:9010"
+    volumes:
+      - ./data:/sleepy/data
+    restart: unless-stopped
+    environment: # 环境变量配置
+      - SLEEPY_DATABASE=sqlite:///data/sleepy.db
+
+volumes:
+  data:
