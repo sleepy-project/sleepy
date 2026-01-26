@@ -1,6 +1,6 @@
 [project]
 name = "device-status"
-version = "1.0.0"
+version = "1.0.1"
 description = "Handles device management and websocket connections"
 authors = [{ name = "Krnl", email = "nt@siiway.org" }]
 dependencies = []

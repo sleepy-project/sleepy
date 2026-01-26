@@ -16,7 +16,7 @@ import errors as e
 
 # Importing shared resources from main
 from main import (
-    SessionDep, TokenDep, manager, engine, sleepy_token_header,
+    SessionDep, TokenDep, _clear_device_tokens, manager, engine, sleepy_token_header,
     _device_hash, _token_login_type
 )
 
@@ -97,6 +97,15 @@ class Plugin(PluginBase):
             status_code=hc.HTTP_204_NO_CONTENT,
             tags=tags,
             name='Update a device'
+        )
+
+        self.add_route(
+            path='/api/devices/{device_id}/reset-token',
+            endpoint=self.reset_device_token,
+            methods=['POST'],
+            response_model=CreateDeviceResponse, # 复用 CreateDeviceResponse，因为它包含 token 字段
+            tags=['devices'],
+            name='Reset Device Token'
         )
 
         self.add_route(
@@ -300,6 +309,39 @@ class Plugin(PluginBase):
             return
         else:
             raise e.APIUnsuccessful(hc.HTTP_404_NOT_FOUND, 'Device not found')
+        
+    async def reset_device_token(
+        self,
+        sess: SessionDep,
+        device_id: str,
+        _: t.Annotated[m.TokenData, Security(TokenDep(allowed_login_types=('web', 'dev')))]
+    ):
+        device = sess.get(m.DeviceData, device_id)
+        if not device:
+            raise e.APIUnsuccessful(hc.HTTP_404_NOT_FOUND, 'Device not found')
+
+        if device_auth:
+             device_auth.clear_device_tokens(sess, device_id)
+        else:
+             # Fallback if plugin link is broken (shouldn't happen)
+             _clear_device_tokens(sess, _device_hash(device_id))
+        
+        if device_auth:
+            tokens = device_auth.issue_device_session(sess, device_id)
+        else:
+            raise e.APIUnsuccessful(hc.HTTP_500_INTERNAL_SERVER_ERROR, 'Device auth plugin missing')
+            
+        device.last_updated = time()
+        sess.add(device)
+        sess.commit()
+
+        return {
+            'id': device.id,
+            'device': device,
+            'token': tokens.token,
+            'refresh_token': tokens.refresh_token,
+            'expires_at': tokens.expires_at
+        }
 
     async def delete_device(
         self,
