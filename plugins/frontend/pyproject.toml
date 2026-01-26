@@ -1,6 +1,6 @@
 [project]
 name = 'frontend'
-version = '1.0.0'
+version = '1.1.0'
 description = "Frontend for sleepy v6"
 authors = [{ name = 'Krnl', email = 'nt@siiway.org' }]
 dependencies = []

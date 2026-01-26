@@ -1,5 +1,6 @@
 # coding: utf-8
 
+import sys
 import zipfile
 import urllib.request
 import json
@@ -20,6 +21,7 @@ REPO_NAME = "sleepy-frontend"
 ASSET_NAME = "dist.zip"
 SRC_ZIP_URL = f"https://github.com/{REPO_OWNER}/{REPO_NAME}/archive/refs/heads/main.zip"
 
+
 class Plugin(PluginBase):
     """
     Frontend Plugin with Smart Build/Download Logic
@@ -27,11 +29,11 @@ class Plugin(PluginBase):
 
     def __init__(self, metadata: PluginMetadata):
         super().__init__(metadata)
-        
+
         self.plugin_dir = Path(__file__).parent.resolve()
         self.dist_path = self.plugin_dir / "dist"
         self.src_path = self.plugin_dir / "frontend-src"
-        
+
         self.add_cli_command(
             command="sync",
             handler=self.cli_sync,
@@ -42,7 +44,7 @@ class Plugin(PluginBase):
         )
 
         self._ensure_frontend_ready()
-        
+
         self._register_routes()
 
     def on_load(self):
@@ -76,8 +78,8 @@ class Plugin(PluginBase):
         初始化逻辑：
         1. dist 存在 -> 跳过
         2. dist 不存在:
-           - 有 pnpm -> 下载源码 -> 编译 -> 复制 dist
-           - 无 pnpm -> 下载 Release dist.zip
+           - 有 nodejs & pnpm -> 下载源码 -> 编译 -> 复制 dist
+           - 无 nodejs & pnpm -> 下载 Release dist.zip
         """
         if self.dist_path.exists() and any(self.dist_path.iterdir()):
             l.info(f"Frontend dist found at: {self.dist_path}")
@@ -85,17 +87,26 @@ class Plugin(PluginBase):
 
         l.warning("Frontend dist not found. Starting setup...")
 
-        if self._is_pnpm_installed():
-            l.info("pnpm detected. Attempting to build from source...")
-            try:
-                self._download_and_extract_source()
-                self._build_frontend()
-            except Exception as e:
-                l.error(f"Build failed: {e}. Falling back to release download.")
-                self._download_release_dist()
-        else:
-            l.info("pnpm not found. Falling back to release download...")
+        if not self._is_node_installed():
+            l.error("Node.js is not installed. Cannot build from source. Falling back to release download...")
             self._download_release_dist()
+            return
+
+        if not self._is_pnpm_installed():
+            l.error("pnpm is not installed. Cannot build from source. Falling back to release download...")
+            self._download_release_dist()
+            return
+
+        l.info("Node.js and pnpm detected. Attempting to build from source...")
+        try:
+            self._download_and_extract_source()
+            self._build_frontend()
+        except Exception as e:
+            l.error(f"Build failed: {e}. Falling back to release download.")
+            self._download_release_dist()
+
+    def _is_node_installed(self) -> bool:
+        return shutil.which("node") is not None or shutil.which("nodejs") is not None
 
     def _is_pnpm_installed(self) -> bool:
         return shutil.which("pnpm") is not None
@@ -103,13 +114,13 @@ class Plugin(PluginBase):
     def _download_and_extract_source(self):
         """下载 main.zip 并解压到 frontend-src"""
         l.info(f"Downloading source from {SRC_ZIP_URL}...")
-        
+
         # 清理旧源码
         if self.src_path.exists():
             shutil.rmtree(self.src_path)
 
         zip_path = self.plugin_dir / "source.zip"
-        
+
         try:
             # 下载
             self._download_file(SRC_ZIP_URL, zip_path)
@@ -118,7 +129,7 @@ class Plugin(PluginBase):
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 root_folder = zip_ref.namelist()[0].split('/')[0]
                 zip_ref.extractall(self.plugin_dir)
-            
+
             extracted_path = self.plugin_dir / root_folder
             if extracted_path.exists():
                 extracted_path.rename(self.src_path)
@@ -131,22 +142,37 @@ class Plugin(PluginBase):
                 zip_path.unlink()
 
     def _build_frontend(self):
-        """在 frontend-src 中执行 pnpm install && pnpm build，并将结果复制到 dist"""
+        """Run pnpm install && pnpm build in frontend-src, then copy dist"""
+
+        is_windows = sys.platform.startswith("win")
+
+        # Command forms
+        if is_windows:
+            install_cmd = ["pnpm", "install"]
+            build_cmd = ["pnpm", "build"]
+            use_shell = False
+        else:
+            install_cmd = ["pnpm install"]
+            build_cmd = ["pnpm build"]
+            use_shell = True
+
+        # Install dependencies
         l.info("Installing dependencies (pnpm install)...")
-        subprocess.run(["pnpm", "install"], cwd=self.src_path, check=True, shell=True)
+        subprocess.run(install_cmd, cwd=self.src_path, check=True, shell=use_shell)
 
+        # Build frontend
         l.info("Building frontend (pnpm build)...")
-        subprocess.run(["pnpm", "build"], cwd=self.src_path, check=True, shell=True)
+        subprocess.run(build_cmd, cwd=self.src_path, check=True, shell=use_shell)
 
-        # 检查构建产物
+        # Check build output
         src_dist = self.src_path / "dist"
         if not src_dist.exists():
             raise Exception("Build finished but 'dist' folder not found in source.")
 
-        # 复制到插件根目录的 dist
+        # Copy to plugin root dist
         if self.dist_path.exists():
             shutil.rmtree(self.dist_path)
-        
+
         shutil.copytree(src_dist, self.dist_path)
         l.info(f"Build artifacts copied to {self.dist_path}")
 
@@ -157,7 +183,7 @@ class Plugin(PluginBase):
         with urllib.request.urlopen(api_url) as response:
             if response.status != 200:
                 raise Exception(f"GitHub API returned status {response.status}")
-            
+
             data = json.loads(response.read().decode('utf-8'))
             tag_name = data.get("tag_name", "unknown")
             l.info(f"Latest release tag found: {tag_name}")
@@ -165,7 +191,7 @@ class Plugin(PluginBase):
             for asset in data.get("assets", []):
                 if asset["name"] == ASSET_NAME:
                     return asset["browser_download_url"]
-            
+
             raise Exception(f"Asset '{ASSET_NAME}' not found in the latest release.")
 
     def _download_release_dist(self):
@@ -177,7 +203,7 @@ class Plugin(PluginBase):
 
             download_url = self._get_latest_download_url()
             l.info(f"Downloading pre-built dist from: {download_url}")
-            
+
             self._download_file(download_url, zip_path)
 
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
@@ -196,7 +222,6 @@ class Plugin(PluginBase):
         urllib.request.install_opener(opener)
         urllib.request.urlretrieve(url, target)
 
-
     def _register_routes(self):
         if not self.dist_path.exists():
             l.error(f"Dist folder missing. Frontend routes will not be registered.")
@@ -210,7 +235,7 @@ class Plugin(PluginBase):
 
         async def root():
             return FileResponse(self.dist_path / "index.html")
-        
+
         self.add_route(
             path='/',
             endpoint=root,
