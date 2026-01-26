@@ -11,6 +11,9 @@ from fastapi import FastAPI, APIRouter, Response, Request
 from pyproject_parser import PyProject
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version, InvalidVersion
+import argparse
+import asyncio
+import inspect
 
 import utils as u
 
@@ -46,6 +49,17 @@ class PluginMount:
         self.app = app
         self.name = name
 
+@dataclass
+class CliArgument:
+    args: List[str]          # 例如 ["--name", "-n"]
+    kwargs: Dict[str, Any]   # 例如 {"help": "姓名", "type": str}
+
+@dataclass
+class CliCommand:
+    name: str
+    handler: Callable[[argparse.Namespace], Any]
+    help: str
+    arguments: List[CliArgument] = field(default_factory=list)
 
 class PluginBase:
     """插件基类"""
@@ -94,6 +108,37 @@ class PluginBase:
     def get_mounts(self) -> List[PluginMount]:
         """获取插件的挂载列表"""
         return self._mounts
+    
+    def add_cli_command(
+        self,
+        command: str,
+        handler: Callable[[argparse.Namespace], Any],
+        help: str = "",
+        arguments: List[tuple[List[str], Dict[str, Any]]] | None = None
+    ):
+        """
+        注册一个 CLI 子命令
+        :param command: 命令名称 (例如 "sync")
+        :param handler: 处理函数，接收 argparse.Namespace 参数
+        :param help: 帮助信息
+        :param arguments: 参数列表，每个元素为 (args_list, kwargs_dict)
+                          例如: ([['--force'], {'action': 'store_true'}])
+        """
+        cmd_args = []
+        if arguments:
+            for arg_names, arg_opts in arguments:
+                cmd_args.append(CliArgument(args=arg_names, kwargs=arg_opts))
+        
+        self._cli_commands.append(CliCommand(
+            name=command,
+            handler=handler,
+            help=help,
+            arguments=cmd_args
+        ))
+        l.debug(f'Plugin {self.metadata.name} registered CLI command: {command}')
+
+    def get_cli_commands(self) -> List[CliCommand]:
+        return self._cli_commands
 
     def on_load(self):
         """插件加载时调用"""
@@ -388,6 +433,34 @@ class PluginManager:
             except Exception as e:
                 l.error(f'Plugin {plugin_name} response modifier failed: {e}')
         return modified_response
+    
+    def setup_cli_commands(self, parser: argparse.ArgumentParser):
+        """
+        将所有插件的命令注册到 argparse
+        结构: main.py <plugin_name> <command> [args]
+        """
+        if not self.plugins:
+            return
+
+        subparsers = parser.add_subparsers(dest='plugin_name', title='Plugin Commands')
+        
+        for name, plugin in self.plugins.items():
+            commands = plugin.get_cli_commands()
+            if not commands:
+                continue
+            
+            # 创建插件级解析器 (例如: main.py example_plugin ...)
+            plugin_parser = subparsers.add_parser(name, help=plugin.metadata.description)
+            plugin_subparsers = plugin_parser.add_subparsers(dest='plugin_command', required=True)
+            
+            for cmd in commands:
+                # 创建动作级解析器 (例如: main.py example_plugin sync ...)
+                cmd_parser = plugin_subparsers.add_parser(cmd.name, help=cmd.help)
+                for arg in cmd.arguments:
+                    cmd_parser.add_argument(*arg.args, **arg.kwargs)
+                
+                # 绑定处理函数
+                cmd_parser.set_defaults(func=cmd.handler)
 
     def unload_plugin(self, plugin_name: str) -> bool:
         """卸载插件"""

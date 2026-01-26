@@ -12,6 +12,7 @@ from traceback import format_exc
 from uuid import uuid4 as uuid, UUID
 from hashlib import sha256
 import argparse
+import inspect
 
 from uvicorn import run
 from loguru import logger as l
@@ -912,12 +913,46 @@ async def websocket_public(ws: WebSocket):
 app.include_router(auth_router)
 
 if __name__ == '__main__':
-    args = parse_cli_args()
-    if args.fresh_start:
+
+    plugin_manager.load_all_plugins()
+
+    # 2. 构建参数解析器
+    parser = argparse.ArgumentParser(description='Sleepy Backend Runner & CLI')
+    
+    # 全局参数（适用于服务器启动）
+    parser.add_argument('--fresh-start', action='store_true', help='Drop and recreate database before starting')
+    
+    # 3. 注册插件命令
+    #    结构变为: python main.py [Global Options] [PluginName] [Command] [Args]
+    #    如果未提供 PluginName，则默认行为是启动服务器
+    plugin_manager.setup_cli_commands(parser)
+
+    # 4. 解析参数
+    #    如果用户输入了插件命令，argparse 会匹配到子命令
+    args = parser.parse_args()
+
+    # 5. 处理 --fresh-start (无论 CLI 还是 Server 模式，如果指定了都执行)
+    if hasattr(args, 'fresh_start') and args.fresh_start:
         perform_fresh_start()
-    l.info(f'Starting server: {f"[{c.host}]" if ":" in c.host else c.host}:{c.port}')  # with {c.workers} workers')
-    run('main:app', host=c.host, port=c.port)  # , workers=c.workers)
-    l.info('Bye.')
-    exit(0)
+
+    if hasattr(args, 'func'):
+        l.info(f"Executing CLI command for plugin: {getattr(args, 'plugin_name', 'unknown')}")
+        try:
+            if inspect.iscoroutinefunction(args.func):
+                asyncio.run(args.func(args))
+            else:
+                args.func(args)
+            l.info("CLI command executed successfully.")
+            exit(0)
+        except Exception as ex:
+            l.error(f"CLI command failed: {ex}")
+            l.error(format_exc())
+            exit(1)
+    else:
+        l.info(f'Starting server: {f"[{c.host}]" if ":" in c.host else c.host}:{c.port}')
+        
+        run('main:app', host=c.host, port=c.port) 
+        l.info('Bye.')
+        exit(0)
 
 # endregion main
