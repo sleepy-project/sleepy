@@ -385,6 +385,15 @@ class PluginManager:
                 "author": info["author"]
             }
 
+        async def list_plugins_endpoint():
+            """获取所有已加载插件的列表"""
+            plugins_list = []
+            for name in self.get_loaded_plugins():
+                info = self.get_plugin_info(name)
+                if info:
+                    plugins_list.append(info)
+            return plugins_list
+
         app.add_api_route(
             "/api/plugin/{plugin_id}/info",
             get_plugin_metadata_endpoint,
@@ -392,6 +401,14 @@ class PluginManager:
             tags=["System"]
         )
         l.info("Registered system route: /api/plugin/{plugin_id}/info")
+
+        app.add_api_route(
+            "/api/plugin/list",
+            list_plugins_endpoint,
+            methods=["GET"],
+            tags=["System"]
+        )
+        l.info("Registered system route: /api/plugin/list")
 
         for plugin_name, plugin in self.plugins.items():
             try:
