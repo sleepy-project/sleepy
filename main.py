@@ -950,9 +950,14 @@ if __name__ == '__main__':
     if hasattr(args, 'fresh_start') and args.fresh_start:
         perform_fresh_start()
 
+    # 6. Determine action: Execute CLI Command or Start Server
     if hasattr(args, 'func'):
-        l.info(f"Executing CLI command for plugin: {getattr(args, 'plugin_name', 'unknown')}")
+        # A subcommand was triggered
+        cmd_name = getattr(args, 'command', 'unknown')
+        l.info(f"Executing CLI command: {cmd_name}")
+        
         try:
+            # Support both async and sync CLI handlers
             if inspect.iscoroutinefunction(args.func):
                 asyncio.run(args.func(args))
             else:
@@ -964,8 +969,8 @@ if __name__ == '__main__':
             l.error(format_exc())
             exit(1)
     else:
+        # No subcommand provided, start the server
         l.info(f'Starting server: {f"[{c.host}]" if ":" in c.host else c.host}:{c.port}')
-        
         run('main:app', host=c.host, port=c.port) 
         l.info('Bye.')
         exit(0)

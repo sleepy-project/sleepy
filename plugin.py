@@ -164,6 +164,13 @@ class PluginBase:
         """插件卸载时调用"""
         pass
 
+    def on_register_cli(self, subparsers: argparse._SubParsersAction):
+        """
+        插件注册 CLI 命令时调用
+        :param subparsers: argparse 的 subparsers 对象，调用 subparsers.add_parser(...) 添加命令
+        """
+        pass
+
     def setup_routes(self, app: FastAPI):
         """设置路由（推荐使用 add_route 方法）"""
         pass
@@ -544,5 +551,31 @@ class PluginManager:
     def get_overridden_routes(self) -> Dict[str, str]:
         return self._overridden_routes.copy()
 
+    def setup_plugin_cli(self, subparsers: argparse._SubParsersAction):
+        """遍历所有插件并注册 CLI"""
+        for plugin_name, plugin in self.plugins.items():
+            try:
+                plugin.on_register_cli(subparsers)
+            except Exception as e:
+                l.error(f'Plugin {plugin_name} failed to register CLI commands: {e}')
+
+    def setup_cli_commands(self, parser: argparse.ArgumentParser):
+        """
+        Registers CLI commands for all loaded plugins.
+        """
+        if not self.plugins:
+            return
+
+        subparsers = parser.add_subparsers(dest='command', help='Plugin commands')
+        
+        count = 0
+        for plugin_name, plugin in self.plugins.items():
+            try:
+                plugin.on_register_cli(subparsers)
+                count += 1
+            except Exception as e:
+                l.error(f'Plugin {plugin_name} failed to register CLI commands: {e}')
+        
+        l.debug(f"Registered CLI commands for {count} plugins.")
 
 plugin_manager = PluginManager()
