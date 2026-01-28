@@ -15,6 +15,7 @@
 
 # coding: utf-8
 
+from collections import defaultdict
 import os
 import sys
 import importlib.util
@@ -155,6 +156,9 @@ class PluginBase:
 
     def get_cli_commands(self) -> List[CliCommand]:
         return self._cli_commands
+    
+    def register_hook(self, event_name: str, callback: Callable):
+        plugin_manager.register_hook(event_name, callback)
 
     def on_load(self):
         """插件加载时调用"""
@@ -189,6 +193,7 @@ class PluginManager:
         self.metadata: Dict[str, PluginMetadata] = {}
         self._response_modifiers: List[tuple[str, Callable]] = []
         self._overridden_routes: Dict[str, str] = {}  # path:method -> plugin_name
+        self.hooks: Dict[str, List[Callable]] = defaultdict(list)
 
     def discover_plugins(self) -> List[str]:
         plugin_names = []
@@ -549,5 +554,34 @@ class PluginManager:
                 l.error(f'Plugin {plugin_name} failed to register CLI commands: {e}')
         
         l.debug(f"Registered CLI commands for {count} plugins.")
+    
+    def register_hook(self, event_name: str, callback: Callable):
+        """
+        注册一个 Hook 监听器
+        :param event_name: 事件名称，如 'device_activity'
+        :param callback: 回调函数，可以是同步或异步
+        """
+        self.hooks[event_name].append(callback)
+        l.debug(f"Registered hook for '{event_name}': {callback.__name__}")
+
+    async def trigger_hook(self, event_name: str, *args, **kwargs):
+        """
+        触发 Hook，依次执行所有注册的回调
+        """
+        callbacks = self.hooks.get(event_name, [])
+        if not callbacks:
+            return
+
+        l.debug(f"Triggering hook '{event_name}' ({len(callbacks)} listeners)")
+        
+        for callback in callbacks:
+            try:
+                # 检查回调是否为异步函数
+                if inspect.iscoroutinefunction(callback):
+                    await callback(*args, **kwargs)
+                else:
+                    callback(*args, **kwargs)
+            except Exception as e:
+                l.error(f"Error in hook listener '{event_name}': {e}")
 
 plugin_manager = PluginManager()
