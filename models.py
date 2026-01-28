@@ -147,17 +147,19 @@ class _PageConfigModel(BaseModel):
     - 将显示在网页中的 `[User]'s Status:` 处
     '''
 
-    title: str = f'{name} Alive?'
+    title: str = ''
     '''
     `page.title`
     页面标题 (`<title>`)
+    - *如未指定, 将使用 `{name} Alive?`*
     '''
 
-    desc: str = f'{name} \'s Online Status Page'
+    desc: str = ''
     '''
     `page.desc`
     页面详情 (用于 SEO, 或许吧)
     - *`<meta name="description">`*
+    - *如未指定, 将使用 `{name}'s Online Status Page`*
     '''
     favicon: str = '/favicon.ico'
     '''

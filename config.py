@@ -91,6 +91,12 @@ class Config:
             raise u.SleepyException(f'Invaild config!\n{e}')
 
         # ===== optimize =====
+        # 设置页面默认 title / desc
+        if not self.config.page.title:
+            self.config.page.title = f'{self.config.page.name} Alive?'
+        if not self.config.page.desc:
+            self.config.page.desc = f'{self.config.page.name} \'s Online Status Page'
+
         # status_list 中自动补全 id
         for i in range(len(self.config.status.status_list)):
             self.config.status.status_list[i].id = i
