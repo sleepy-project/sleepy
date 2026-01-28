@@ -21,7 +21,3 @@ logs/
 
 # Others
 .vscode/launch.json
-
-# Frontend plugin
-dist
-frontend-src

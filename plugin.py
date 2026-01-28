@@ -175,6 +175,14 @@ class PluginBase:
         """
         pass
 
+    async def on_startup(self):
+        """应用启动时调用 (异步，有 EventLoop)"""
+        pass
+
+    async def on_shutdown(self):
+        """应用关闭时调用 (异步)"""
+        pass
+
     def setup_routes(self, app: FastAPI):
         """设置路由（推荐使用 add_route 方法）"""
         pass
@@ -356,6 +364,21 @@ class PluginManager:
             if not progress:
                 l.error(f'Cannot load plugins due to unresolved dependencies or cycles: {remaining}')
                 break
+
+    async def startup_events(self):
+        """在 EventLoop 启动后调用"""
+        for name, plugin in self.plugins.items():
+            try:
+                await plugin.on_startup()
+            except Exception as e:
+                l.error(f"Plugin {name} startup error: {e}")
+
+    async def shutdown_events(self):
+        for name, plugin in self.plugins.items():
+            try:
+                await plugin.on_shutdown()
+            except Exception as e:
+                l.error(f"Plugin {name} shutdown error: {e}")
 
     def _remove_existing_route(self, app: FastAPI, path: str, methods: List[str]):
         """移除已存在的路由"""

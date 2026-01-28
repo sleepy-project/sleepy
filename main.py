@@ -166,6 +166,7 @@ async def lifespan(app: FastAPI):
     try:
         plugin_manager.load_all_plugins()
         plugin_manager.setup_plugin_routes(app)
+        await plugin_manager.startup_events()
         loaded = plugin_manager.get_loaded_plugins()
         if loaded:
             l.info(f'Successfully loaded {len(loaded)} plugin(s): {", ".join(loaded)}')
@@ -177,6 +178,7 @@ async def lifespan(app: FastAPI):
     yield
 
     l.info('Unloading Plugins')
+    await plugin_manager.shutdown_events()
     for plugin_name in list(plugin_manager.get_loaded_plugins()):
         try:
             plugin_manager.unload_plugin(plugin_name)
