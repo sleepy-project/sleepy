@@ -21,3 +21,6 @@ logs/
 
 # Others
 .vscode/launch.json
+
+# Plugins
+plugins/
