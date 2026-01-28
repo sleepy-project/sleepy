@@ -239,6 +239,8 @@ class Plugin(PluginBase):
                     'fields': fields
                 })
 
+                await plugin_manager.trigger_hook('device_activity', device_id=device_id, source='websocket')
+
         except WebSocketDisconnect:
             l.info(f'WebSocket disconnected for device {device_id}')
         except Exception as ex:
@@ -336,6 +338,7 @@ class Plugin(PluginBase):
                     meta.last_updated = time()
                 sess.commit()
                 await manager.evt_broadcast('device_updated', {'id': device_id, 'updated_fields': updated})
+                await plugin_manager.trigger_hook('device_activity', device_id=device_id, source='http_update')
             return
         else:
             raise e.APIUnsuccessful(hc.HTTP_404_NOT_FOUND, 'Device not found')
