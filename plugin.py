@@ -473,34 +473,6 @@ class PluginManager:
             except Exception as e:
                 l.error(f'Plugin {plugin_name} response modifier failed: {e}')
         return modified_response
-    
-    def setup_cli_commands(self, parser: argparse.ArgumentParser):
-        """
-        将所有插件的命令注册到 argparse
-        结构: main.py <plugin_name> <command> [args]
-        """
-        if not self.plugins:
-            return
-
-        subparsers = parser.add_subparsers(dest='plugin_name', title='Plugin Commands')
-        
-        for name, plugin in self.plugins.items():
-            commands = plugin.get_cli_commands()
-            if not commands:
-                continue
-            
-            # 创建插件级解析器 (例如: main.py example_plugin ...)
-            plugin_parser = subparsers.add_parser(name, help=plugin.metadata.description)
-            plugin_subparsers = plugin_parser.add_subparsers(dest='plugin_command', required=True)
-            
-            for cmd in commands:
-                # 创建动作级解析器 (例如: main.py example_plugin sync ...)
-                cmd_parser = plugin_subparsers.add_parser(cmd.name, help=cmd.help)
-                for arg in cmd.arguments:
-                    cmd_parser.add_argument(*arg.args, **arg.kwargs)
-                
-                # 绑定处理函数
-                cmd_parser.set_defaults(func=cmd.handler)
 
     def unload_plugin(self, plugin_name: str) -> bool:
         """卸载插件"""
