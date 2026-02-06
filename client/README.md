@@ -65,6 +65,7 @@
   - [MagiskService](#magiskservice)
     - [配置](#配置-3)
     - [使用](#使用-2)
+    - [Mod](#mod)
 - [Linux](#linux)
   - [LinuxScriptKDE](#linuxscriptkde)
     - [配置](#配置-4)
@@ -337,6 +338,15 @@ https://github.com/sleepy-project/sleepy/blob/7bb1866e8448d921f6161f1200164a1991
 ### 使用
 
 刷入 [magisk.zip](./magisk/magisk.zip) 并重启即可
+
+### Mod
+
+另有 [@XFJ-YYQF](https://github.com/XFJ-YYQF) 的修改版本可用，支持**媒体状态获取**
+
+见:
+
+- [./magisk-mod/config.cfg](./magisk-mod/config.cfg)
+- [说明 ~~(好像和原版一样)~~](./magisk-mod/README.md)
 
 # Linux
 
