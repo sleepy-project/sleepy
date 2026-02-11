@@ -20,3 +20,5 @@ data.json
 # Others
 .vscode/launch.json
 
+# sleepy logs
+*.log
