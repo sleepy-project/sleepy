@@ -211,9 +211,23 @@ def static_default_theme(filename: str):
     import { ... } from "../../default/static/utils";
     ```
     '''
+    l.debug(f'[static_default_theme] Original filename: {filename}')
+    
+    # 检查是否已经包含 static 路径
+    if 'static' not in filename:
+        # 如果没有，添加 static 路径
+        filename = f'static/{filename}'
+    
     if not filename.endswith('.js'):
         filename += '.js'
-    return flask.send_from_directory('theme/default', filename)
+    
+    l.debug(f'[static_default_theme] Final filename: {filename}')
+    
+    try:
+        return flask.send_from_directory('theme/default', filename)
+    except Exception as e:
+        l.error(f'[static_default_theme] Error: {e}')
+        return f'Error: {e}', 404
 
 # endregion theme
 

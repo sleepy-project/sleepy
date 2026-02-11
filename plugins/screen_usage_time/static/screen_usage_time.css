@@ -1,0 +1,171 @@
+/* 屏幕使用时长统计样式 */
+.screen-usage-time {
+  background-color: rgba(var(--light-bg-rgb), var(--card-alpha));
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  color: black;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 10px;
+  padding: 2rem 1rem;
+  margin: 1rem auto;
+  font-size: 1.1em;
+  /* 大屏宽度 */
+  width: 65%;
+  text-align: center;
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  position: relative;
+  transition: all 0.2s;
+}
+
+/* 较大屏范围 */
+@media (max-width: 1250px) {
+  .screen-usage-time {
+    /* 大屏宽度 */
+    width: 60%;
+  }
+}
+
+/* 较小屏范围 */
+@media (max-width: 750px) {
+  .screen-usage-time {
+    /* 较小屏宽度 */
+    width: 75%;
+  }
+}
+
+/* 小屏范围 */
+@media (max-width: 500px) {
+  .screen-usage-time {
+    /* 小屏宽度 */
+    width: 90%;
+  }
+}
+
+.screen-usage-time:hover {
+  transition: all 0.1s;
+  transform: translateY(-5px);
+  box-shadow: 0 12px 40px rgba(206, 140, 210, 0.2);
+}
+
+.screen-usage-time h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.usage-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.usage-section {
+  flex: 1;
+  min-width: 300px;
+}
+
+.usage-section h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #666;
+}
+
+.usage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.usage-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 4px;
+}
+
+.app-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f0f0f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.app-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.app-info {
+  flex: 1;
+}
+
+.app-name {
+  font-weight: bold;
+  color: #333;
+}
+
+.app-time {
+  font-size: 12px;
+  color: #666;
+}
+
+.app-progress {
+  width: 100px;
+  height: 8px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: #4caf50;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+/* 深色模式适配 */
+@media (prefers-color-scheme: dark) {
+  .screen-usage-time {
+    background: rgba(var(--dark-bg-rgb), var(--card-alpha));
+  }
+  
+  .screen-usage-time h3 {
+    color: #f0f0f0;
+  }
+  
+  .usage-section h4 {
+    color: #ccc;
+  }
+  
+  .usage-item {
+    background: rgba(0, 0, 0, 0.8);
+  }
+  
+  .app-name {
+    color: #f0f0f0;
+  }
+  
+  .app-time {
+    color: #ccc;
+  }
+  
+  .app-icon {
+    background: #333;
+  }
+  
+  .app-progress {
+    background: #444;
+  }
+  
+  .progress-bar {
+    background: #4caf50;
+  }
+}
