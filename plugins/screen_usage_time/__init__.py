@@ -198,8 +198,11 @@ class ScreenUsageTimePlugin(Plugin):
                             website_name = f'Site {site_id}'
                             icon_file = ''
                         
+                        # 将反斜杠替换
+                        strip_icon_file = (icon_file or '').replace('\\', '').replace(os.sep, '')
+                        
                         daily_usage[date]['website_usage'][website_name] = {
-                            'icon': icon_file,
+                            'icon': strip_icon_file,
                             'total_time': total_duration
                         }
             
@@ -323,20 +326,45 @@ class ScreenUsageTimePlugin(Plugin):
     
     async def serve_icon_file(self, filename):
         try:
-            # 尝试从WebFavicons目录提供
-            webfavicons_path = u.get_path(f'plugins/{self.name}/data/WebFavicons')
-            # 使用异步方式检查文件是否存在
-            loop = asyncio.get_event_loop()
-            webfavicons_exists = await loop.run_in_executor(None, os.path.exists, os.path.join(webfavicons_path, filename))
-            if webfavicons_exists:
-                return send_from_directory(webfavicons_path, filename)
+            # 清理文件名，处理双斜杠和路径前缀，去除开头和结尾的斜杠
+            cleaned_filename = filename.strip('/')
+            # 替换多个斜杠为单个斜杠
+            cleaned_filename = '/'.join(filter(None, cleaned_filename.split('/')))
             
-            # 尝试从AppIcons目录提供
-            appicons_path = u.get_path(f'plugins/{self.name}/data/AppIcons')
-            # 使用异步方式检查文件是否存在
-            appicons_exists = await loop.run_in_executor(None, os.path.exists, os.path.join(appicons_path, filename))
-            if appicons_exists:
-                return send_from_directory(appicons_path, filename)
+            # 检查是否包含目录前缀
+            if '/' in cleaned_filename:
+                # 分离目录和文件名
+                parts = cleaned_filename.split('/')
+                dir_name = parts[-2]
+                file_name = parts[-1]
+            else:
+                dir_name = ''
+                file_name = cleaned_filename
+            
+            # 尝试从相应的目录提供
+            if dir_name == 'WebFavicons' or dir_name == 'AppIcons':
+                # 使用指定的目录
+                icon_path = u.get_path(f'plugins/{self.name}/data/{dir_name}')
+                # 使用异步方式检查文件是否存在
+                loop = asyncio.get_event_loop()
+                file_exists = await loop.run_in_executor(None, os.path.exists, os.path.join(icon_path, file_name))
+                if file_exists:
+                    return send_from_directory(icon_path, file_name)
+            else:
+                # 尝试从WebFavicons目录提供
+                webfavicons_path = u.get_path(f'plugins/{self.name}/data/WebFavicons')
+                # 使用异步方式检查文件是否存在
+                loop = asyncio.get_event_loop()
+                webfavicons_exists = await loop.run_in_executor(None, os.path.exists, os.path.join(webfavicons_path, cleaned_filename))
+                if webfavicons_exists:
+                    return send_from_directory(webfavicons_path, cleaned_filename)
+                
+                # 尝试从AppIcons目录提供
+                appicons_path = u.get_path(f'plugins/{self.name}/data/AppIcons')
+                # 使用异步方式检查文件是否存在
+                appicons_exists = await loop.run_in_executor(None, os.path.exists, os.path.join(appicons_path, cleaned_filename))
+                if appicons_exists:
+                    return send_from_directory(appicons_path, cleaned_filename)
             
             return jsonify({'success': False, 'message': 'Icon not found'}), 404
         except Exception as e:

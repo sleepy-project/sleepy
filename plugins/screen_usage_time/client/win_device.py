@@ -35,7 +35,7 @@ import os
 # 服务地址, 末尾同样不带 /
 SERVER: str = 'http://localhost:9010'
 # 密钥
-SECRET: str = 'Sleepy-Secret-tFsDp4axSran3Q5r85wmafKhZ5JdJa3b'
+SECRET: str = 'your-secret-here'
 # 设备标识符，唯一 (它也会被包含在 api 返回中, 不要包含敏感数据)
 DEVICE_ID: str = 'test-device'
 # 前台显示名称
