@@ -141,6 +141,26 @@ class ScreenUsageTimePlugin(Plugin):
             
             # 处理WebBrowseLogModels（网站浏览记录）
             if 'WebBrowseLogModels' in data:
+                # 创建site_id到网站名称的映射
+                site_id_to_name = {}
+                site_id_to_icon = {}
+                
+                # 检查是否存在WebSiteModels表
+                if 'WebSiteModels' in data:
+                    for website in data['WebSiteModels']:
+                        site_id = website.get('ID', '')
+                        website_name = website.get('Title', '')
+                        icon_file = website.get('IconFile', '')
+                        
+                        if site_id and website_name:
+                            site_id_to_name[site_id] = website_name
+                            if icon_file:
+                                if 'WebFavicons' in icon_file:
+                                    icon_file = icon_file.split('WebFavicons')[-1]
+                                    if icon_file.startswith(os.sep):
+                                        icon_file = icon_file[1:]
+                            site_id_to_icon[site_id] = icon_file
+                
                 # 按日期和网站ID分组统计
                 web_logs_by_date = {}
                 for web_log in data['WebBrowseLogModels']:
@@ -164,15 +184,22 @@ class ScreenUsageTimePlugin(Plugin):
                         web_logs_by_date[date][site_id] = 0
                     web_logs_by_date[date][site_id] += duration
                 
-                # 由于没有WebSiteModels，我们使用SiteId作为网站名称
+                # 使用网站名称或SiteId作为网站名称
                 for date, site_logs in web_logs_by_date.items():
                     if date not in daily_usage:
                         daily_usage[date] = {'app_usage': {}, 'website_usage': {}}
                     for site_id, total_duration in site_logs.items():
-                        # 使用SiteId作为网站名称，实际应用中可能需要从其他地方获取网站名称
-                        website_name = f'Site {site_id}'
+                        # 优先使用WebSiteModels中的网站名称
+                        if site_id in site_id_to_name:
+                            website_name = site_id_to_name[site_id]
+                            icon_file = site_id_to_icon.get(site_id, '')
+                        else:
+                            # 如果没有网站名称，使用SiteId作为网站名称
+                            website_name = f'Site {site_id}'
+                            icon_file = ''
+                        
                         daily_usage[date]['website_usage'][website_name] = {
-                            'icon': '',
+                            'icon': icon_file,
                             'total_time': total_duration
                         }
             
