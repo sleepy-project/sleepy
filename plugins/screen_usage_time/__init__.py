@@ -12,6 +12,13 @@ from plugin import Plugin
 
 l = logging.getLogger(__name__)
 
+def extract_filename(path):
+    """跨平台提取文件名，处理 Windows 和 Unix 路径分隔符"""
+    if not path:
+        return ''
+    path = path.replace('\\', '/')
+    return path.split('/')[-1] if '/' in path else path
+
 class ScreenUsageTimePlugin(Plugin):
     def __init__(self):
         super().__init__(
@@ -94,8 +101,7 @@ class ScreenUsageTimePlugin(Plugin):
                     icon_file = app.get('IconFile', '')
                     total_time = app.get('TotalTime', 0)
                     
-                    if icon_file:
-                        icon_file = os.path.basename(icon_file)
+                    icon_file = extract_filename(icon_file)
                     
                     if app_name:
                         app_usage[app_name] = {
@@ -157,10 +163,7 @@ class ScreenUsageTimePlugin(Plugin):
                         
                         if site_id and website_name:
                             site_id_to_name[site_id] = website_name
-                            if icon_file:
-                                # 只保留文件名
-                                icon_file = os.path.basename(icon_file)
-                            site_id_to_icon[site_id] = icon_file
+                            site_id_to_icon[site_id] = extract_filename(icon_file)
                 
                 # 按日期和网站ID分组统计
                 web_logs_by_date = {}
@@ -279,7 +282,8 @@ class ScreenUsageTimePlugin(Plugin):
                                 continue
                             
                             # 构建新的文件名
-                            new_filename = f"{original_filename}"
+                            base_name = os.path.splitext(original_filename)[0]
+                            new_filename = f"{base_name}{file_ext}"
                             
                             # 根据文件类型保存到不同目录
                             if file_ext == '.ico':
@@ -292,7 +296,7 @@ class ScreenUsageTimePlugin(Plugin):
                             content = file.read()
                             loop = asyncio.get_event_loop()
                             await loop.run_in_executor(None, self._save_file, save_path, content)
-                            saved_files.append(original_filename)
+                            saved_files.append(new_filename)
             
             # 检查是否有请求体和filename请求头（直接发送文件内容格式）
             elif request.data and request.headers.get('filename'):
@@ -319,7 +323,8 @@ class ScreenUsageTimePlugin(Plugin):
                     return jsonify({'success': False, 'message': 'Only .ico and .png files are allowed'}), 400
                 
                 # 构建新的文件名
-                new_filename = f"{filename_header}"
+                base_name = os.path.splitext(filename_header)[0]
+                new_filename = f"{base_name}{file_ext}"
                 
                 # 根据文件类型保存到不同目录
                 if file_ext == '.ico':
@@ -332,7 +337,7 @@ class ScreenUsageTimePlugin(Plugin):
                 content = request.data
                 loop = asyncio.get_event_loop()
                 await loop.run_in_executor(None, self._save_file, save_path, content)
-                saved_files.append(filename_header)
+                saved_files.append(new_filename)
             
             # 检查是否有文件被保存
             if not saved_files:
@@ -433,17 +438,13 @@ class ScreenUsageTimePlugin(Plugin):
             website_times = [data.get('total_time', 0) for data in website_usage.values()]
             website_max_time = max(website_times) if website_times else 1
             
-            # 格式化应用使用时间数据
             formatted_app_usage = {}
             for app_name, app_data in app_usage.items():
                 total_time = app_data.get('total_time', 0)
                 progress = (total_time / app_max_time) * 100 if app_max_time > 0 else 0
                 icon = app_data.get('icon', '')
-                # 对图标文件名进行base64编码
                 if icon:
-                    # 去除路径，只保留文件名
-                    icon_filename = os.path.basename(icon)
-                    # 对文件名进行base64编码
+                    icon_filename = extract_filename(icon)
                     encoded_icon = base64.b64encode(icon_filename.encode('utf-8')).decode('utf-8')
                 else:
                     encoded_icon = ''
@@ -451,20 +452,16 @@ class ScreenUsageTimePlugin(Plugin):
                     'icon': encoded_icon,
                     'total_time': total_time,
                     'formatted_time': self.format_time(total_time),
-                    'progress': min(progress, 100)  # 确保进度不超过100%
+                    'progress': min(progress, 100)
                 }
             
-            # 格式化网站使用时间数据
             formatted_website_usage = {}
             for website_name, website_data in website_usage.items():
                 total_time = website_data.get('total_time', 0)
                 progress = (total_time / website_max_time) * 100 if website_max_time > 0 else 0
                 icon = website_data.get('icon', '')
-                # 对图标文件名进行base64编码
                 if icon:
-                    # 去除路径，只保留文件名
-                    icon_filename = os.path.basename(icon)
-                    # 对文件名进行base64编码
+                    icon_filename = extract_filename(icon)
                     encoded_icon = base64.b64encode(icon_filename.encode('utf-8')).decode('utf-8')
                 else:
                     encoded_icon = ''
@@ -472,7 +469,7 @@ class ScreenUsageTimePlugin(Plugin):
                     'icon': encoded_icon,
                     'total_time': total_time,
                     'formatted_time': self.format_time(total_time),
-                    'progress': min(progress, 100)  # 确保进度不超过100%
+                    'progress': min(progress, 100)
                 }
             
             # 按使用时间排序
