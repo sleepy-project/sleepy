@@ -2,7 +2,7 @@
 '''
 win_device.py
 在 Windows 上获取窗口名称
-by: @wyf9, @pwnint, @kmizmal, @gongfuture, @LeiSureLyYrsc
+by: @wyf9, @pwnint, @kmizmal, @gongfuture, @LeiSureLyYrsc @VanillaNahida
 基础依赖: pywin32, httpx
 媒体信息依赖:
  - Python≤3.9: winrt
@@ -46,7 +46,7 @@ CHECK_INTERVAL: int = 5
 BYPASS_SAME_REQUEST: bool = True
 # 控制台输出所用编码，避免编码出错，可选 utf-8 或 gb18030
 ENCODING: str = 'gb18030'
-# 当窗口标题为其中任意一项时将不更新
+# 当窗口标题为其中任意一项时将不更新（模糊匹配）
 SKIPPED_NAMES: list = [
     '',  # 空字符串
     '系统托盘溢出窗口。', '新通知', '任务切换', '快速设置', '通知中心', '操作中心', '日期和时间信息', '网络连接', '电池信息', '搜索', '任务视图', '任务切换', 'Program Manager', '贴靠助手',  # 桌面组件
@@ -383,6 +383,7 @@ async def upload_tai_icons(icons_path, file_type):
                     'Sleepy-Secret': SECRET,
                     'filename': encoded_filename
                 }
+                debug(f"准备上传图标：{filename} (编码后的文件名：{encoded_filename})")
                 
                 if PROXY:
                     async with httpx.AsyncClient(proxy=PROXY, timeout=30.0) as client:
@@ -666,8 +667,9 @@ async def do_update():
             using = False
             debug(f'* not using: `{current_window}`')
 
-        # 窗口名称检查 (跳过列表)
-        if current_window in SKIPPED_NAMES:
+        # 窗口名称检查 (模糊匹配跳过列表)
+        should_skip = any(skip_name in current_window for skip_name in SKIPPED_NAMES if skip_name)
+        if should_skip:
             if mouse_idle == is_mouse_idle:
                 # 鼠标状态未改变 -> 直接跳过
                 debug(f'* in skip list: `{current_window}`, skipped')

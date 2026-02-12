@@ -85,22 +85,29 @@ class ScreenUsageTimePlugin(Plugin):
             app_usage = {}
             website_usage = {}
             daily_usage = {}
+            app_id_map = {}  # 用于快速查找应用信息的字典
             
-            # 处理AppModels
             if 'AppModels' in data:
                 for app in data['AppModels']:
-                    app_name = app.get('Description', '')
+                    app_id = app.get('ID', '')
+                    app_name = app.get('Description') or app.get('Name', '')
                     icon_file = app.get('IconFile', '')
                     total_time = app.get('TotalTime', 0)
                     
-                    # 处理图标路径
                     if icon_file:
                         icon_file = os.path.basename(icon_file)
                     
-                    app_usage[app_name] = {
-                        'icon': icon_file,
-                        'total_time': total_time
-                    }
+                    if app_name:
+                        app_usage[app_name] = {
+                            'icon': icon_file,
+                            'total_time': total_time
+                        }
+                    
+                    if app_id:
+                        app_id_map[app_id] = {
+                            'name': app_name,
+                            'icon': icon_file
+                        }
             
             # 处理DailyLogModels（每天的使用时间记录）
             if 'DailyLogModels' in data:
@@ -119,17 +126,13 @@ class ScreenUsageTimePlugin(Plugin):
                     app_id = daily_log.get('AppModelID', '')
                     duration = daily_log.get('Time', 0)
                     
-                    # 查找对应的应用名称
+                    # 查找对应的应用名称（使用字典实现O(1)查找）
                     app_name = ''
                     icon_file = ''
-                    if 'AppModels' in data:
-                        for app in data['AppModels']:
-                            if app.get('ID') == app_id:
-                                app_name = app.get('Description', '')
-                                icon_file = app.get('IconFile', '')
-                                if icon_file:
-                                    icon_file = os.path.basename(icon_file)
-                                break
+                    if app_id in app_id_map:
+                        app_info = app_id_map[app_id]
+                        app_name = app_info['name']
+                        icon_file = app_info['icon']
                     
                     if app_name:
                         if date not in daily_usage:
@@ -155,10 +158,8 @@ class ScreenUsageTimePlugin(Plugin):
                         if site_id and website_name:
                             site_id_to_name[site_id] = website_name
                             if icon_file:
-                                if 'WebFavicons' in icon_file:
-                                    icon_file = icon_file.split('WebFavicons')[-1]
-                                    if icon_file.startswith(os.sep):
-                                        icon_file = icon_file[1:]
+                                # 只保留文件名
+                                icon_file = os.path.basename(icon_file)
                             site_id_to_icon[site_id] = icon_file
                 
                 # 按日期和网站ID分组统计
@@ -219,96 +220,119 @@ class ScreenUsageTimePlugin(Plugin):
         """在后台线程中更新使用时间数据"""
         with self.data_context() as d:
             if app_usage:
-                d['app_usage'] = app_usage
+                existing_app_usage = d.get('app_usage', {})
+                existing_app_usage.update(app_usage)
+                d['app_usage'] = existing_app_usage
             if website_usage:
-                d['website_usage'] = website_usage
+                existing_website_usage = d.get('website_usage', {})
+                existing_website_usage.update(website_usage)
+                d['website_usage'] = existing_website_usage
             if daily_usage:
-                d['daily_usage'] = daily_usage
+                existing_daily_usage = d.get('daily_usage', {})
+                for date, date_data in daily_usage.items():
+                    if date not in existing_daily_usage:
+                        existing_daily_usage[date] = {'app_usage': {}, 'website_usage': {}}
+                    if 'app_usage' in date_data:
+                        existing_daily_usage[date]['app_usage'].update(date_data['app_usage'])
+                    if 'website_usage' in date_data:
+                        existing_daily_usage[date]['website_usage'].update(date_data['website_usage'])
+                d['daily_usage'] = existing_daily_usage
             d['last_updated'] = datetime.now().isoformat()
+        
+        self.global_data.last_updated = datetime.now().timestamp()
     
     async def handle_icons(self):
         try:
             saved_files = []
+            import re
             
             # 检查是否有文件字段（multipart/form-data格式）
             if request.files:
                 # 遍历所有文件字段
                 for field_name, files in request.files.items():
-                    # 处理多个文件
-                    if isinstance(files, list):
-                        for file in files:
-                            if file.filename:
-                                # 直接使用文件对象的 filename 属性，Flask 会自动处理编码
-                                filename = secure_filename(file.filename)
-                                file_ext = os.path.splitext(filename)[1].lower()
-                                
-                                # 根据文件类型保存到不同目录
-                                if file_ext == '.ico':
-                                    save_dir = u.get_path(f'plugins/{self.name}/data/WebFavicons')
-                                elif file_ext == '.png':
-                                    save_dir = u.get_path(f'plugins/{self.name}/data/AppIcons')
-                                else:
-                                    continue  # 只处理ico和png文件
-                                
-                                save_path = os.path.join(save_dir, filename)
-                                # 使用异步文件写入
-                                content = file.read()
-                                loop = asyncio.get_event_loop()
-                                await loop.run_in_executor(None, self._save_file, save_path, content)
-                                saved_files.append(filename)
-                    else:
-                        # 处理单个文件
-                        file = files
+                    # 处理多个文件或单个文件
+                    file_list = files if isinstance(files, list) else [files]
+                    for file in file_list:
                         if file.filename:
-                            # 直接使用文件对象的 filename 属性，Flask 会自动处理编码
-                            filename = secure_filename(file.filename)
-                            file_ext = os.path.splitext(filename)[1].lower()
+                            # 获取原始文件名，去除路径
+                            original_filename = os.path.basename(file.filename)
+                            
+                            # 检查文件名是否是base64编码
+                            if not re.match(r'^[A-Za-z0-9+/]+={0,2}$', original_filename):
+                                continue  # 跳过非base64编码的文件名
+                            
+                            # 从文件名中提取扩展名
+                            file_ext = os.path.splitext(original_filename)[1].lower()
+                            # 如果没有扩展名，尝试从文件内容推断
+                            if not file_ext:
+                                # 检查文件内容的前几个字节来推断文件类型
+                                content = file.read()
+                                if content.startswith(b'\x00\x00\x01\x00'):
+                                    file_ext = '.ico'
+                                elif content.startswith(b'\x89PNG'):
+                                    file_ext = '.png'
+                                # 重置文件指针
+                                file.seek(0)
+                            
+                            # 只处理ico和png文件
+                            if file_ext not in ['.ico', '.png']:
+                                continue
+                            
+                            # 构建新的文件名
+                            new_filename = f"{original_filename}"
                             
                             # 根据文件类型保存到不同目录
                             if file_ext == '.ico':
                                 save_dir = u.get_path(f'plugins/{self.name}/data/WebFavicons')
-                            elif file_ext == '.png':
-                                save_dir = u.get_path(f'plugins/{self.name}/data/AppIcons')
                             else:
-                                continue  # 只处理ico和png文件
+                                save_dir = u.get_path(f'plugins/{self.name}/data/AppIcons')
                             
-                            save_path = os.path.join(save_dir, filename)
+                            save_path = os.path.join(save_dir, new_filename)
                             # 使用异步文件写入
                             content = file.read()
                             loop = asyncio.get_event_loop()
                             await loop.run_in_executor(None, self._save_file, save_path, content)
-                            saved_files.append(filename)
+                            saved_files.append(original_filename)
             
             # 检查是否有请求体和filename请求头（直接发送文件内容格式）
             elif request.data and request.headers.get('filename'):
-                # 对文件名进行 base64 解码
-                encoded_filename = request.headers.get('filename', '')
-                try:
-                    # 解码 base64 编码的文件名
-                    filename = base64.b64decode(encoded_filename).decode('utf-8')
-                    # 保存原始文件名，不使用 secure_filename，确保中文文件名正确保存
-                    # 如果文件名包含路径，只取文件名部分
-                    filename = os.path.basename(filename)
-                except:
-                    # 如果解码失败，使用原始文件名
-                    filename = encoded_filename
-                    filename = os.path.basename(filename)
-                file_ext = os.path.splitext(filename)[1].lower()
+                # 获取文件名
+                filename_header = request.headers.get('filename', '')
+                # 去除路径
+                filename_header = os.path.basename(filename_header)
+                
+                # 检查文件名是否是base64编码
+                if not re.match(r'^[A-Za-z0-9+/]+={0,2}$', filename_header):
+                    return jsonify({'success': False, 'message': 'Filename must be base64 encoded'}), 400
+                
+                # 从文件名中提取扩展名
+                file_ext = os.path.splitext(filename_header)[1].lower()
+                # 如果没有扩展名，尝试从文件内容推断
+                if not file_ext:
+                    if request.data.startswith(b'\x00\x00\x01\x00'):
+                        file_ext = '.ico'
+                    elif request.data.startswith(b'\x89PNG'):
+                        file_ext = '.png'
+                
+                # 只处理ico和png文件
+                if file_ext not in ['.ico', '.png']:
+                    return jsonify({'success': False, 'message': 'Only .ico and .png files are allowed'}), 400
+                
+                # 构建新的文件名
+                new_filename = f"{filename_header}"
                 
                 # 根据文件类型保存到不同目录
                 if file_ext == '.ico':
                     save_dir = u.get_path(f'plugins/{self.name}/data/WebFavicons')
-                elif file_ext == '.png':
-                    save_dir = u.get_path(f'plugins/{self.name}/data/AppIcons')
                 else:
-                    return jsonify({'success': False, 'message': 'Only .ico and .png files are allowed'}), 400
+                    save_dir = u.get_path(f'plugins/{self.name}/data/AppIcons')
                 
-                save_path = os.path.join(save_dir, filename)
+                save_path = os.path.join(save_dir, new_filename)
                 # 使用异步文件写入
                 content = request.data
                 loop = asyncio.get_event_loop()
                 await loop.run_in_executor(None, self._save_file, save_path, content)
-                saved_files.append(filename)
+                saved_files.append(filename_header)
             
             # 检查是否有文件被保存
             if not saved_files:
@@ -336,35 +360,29 @@ class ScreenUsageTimePlugin(Plugin):
                 # 分离目录和文件名
                 parts = cleaned_filename.split('/')
                 dir_name = parts[-2]
-                file_name = parts[-1]
+                encoded_filename = parts[-1]
             else:
                 dir_name = ''
-                file_name = cleaned_filename
+                encoded_filename = cleaned_filename
             
-            # 尝试从相应的目录提供
-            if dir_name == 'WebFavicons' or dir_name == 'AppIcons':
-                # 使用指定的目录
-                icon_path = u.get_path(f'plugins/{self.name}/data/{dir_name}')
-                # 使用异步方式检查文件是否存在
-                loop = asyncio.get_event_loop()
-                file_exists = await loop.run_in_executor(None, os.path.exists, os.path.join(icon_path, file_name))
-                if file_exists:
-                    return send_from_directory(icon_path, file_name)
-            else:
-                # 尝试从WebFavicons目录提供
-                webfavicons_path = u.get_path(f'plugins/{self.name}/data/WebFavicons')
-                # 使用异步方式检查文件是否存在
-                loop = asyncio.get_event_loop()
-                webfavicons_exists = await loop.run_in_executor(None, os.path.exists, os.path.join(webfavicons_path, cleaned_filename))
-                if webfavicons_exists:
-                    return send_from_directory(webfavicons_path, cleaned_filename)
-                
-                # 尝试从AppIcons目录提供
-                appicons_path = u.get_path(f'plugins/{self.name}/data/AppIcons')
-                # 使用异步方式检查文件是否存在
-                appicons_exists = await loop.run_in_executor(None, os.path.exists, os.path.join(appicons_path, cleaned_filename))
-                if appicons_exists:
-                    return send_from_directory(appicons_path, cleaned_filename)
+            # 尝试从WebFavicons目录提供
+            webfavicons_path = u.get_path(f'plugins/{self.name}/data/WebFavicons')
+            # 构建可能的文件名（添加.ico扩展名）
+            ico_filename = f"{encoded_filename}.ico"
+            # 使用异步方式检查文件是否存在
+            loop = asyncio.get_event_loop()
+            webfavicons_exists = await loop.run_in_executor(None, os.path.exists, os.path.join(webfavicons_path, ico_filename))
+            if webfavicons_exists:
+                return send_from_directory(webfavicons_path, ico_filename)
+            
+            # 尝试从AppIcons目录提供
+            appicons_path = u.get_path(f'plugins/{self.name}/data/AppIcons')
+            # 构建可能的文件名（添加.png扩展名）
+            png_filename = f"{encoded_filename}.png"
+            # 使用异步方式检查文件是否存在
+            appicons_exists = await loop.run_in_executor(None, os.path.exists, os.path.join(appicons_path, png_filename))
+            if appicons_exists:
+                return send_from_directory(appicons_path, png_filename)
             
             return jsonify({'success': False, 'message': 'Icon not found'}), 404
         except Exception as e:
@@ -387,16 +405,25 @@ class ScreenUsageTimePlugin(Plugin):
     def handle_query_access_event(self, event):
         """处理查询访问事件，添加设备使用时间统计数据"""
         try:
-            # 获取当天日期，格式为YYYY-MM-DD
             today = datetime.now().strftime('%Y-%m-%d')
             
-            # 优先使用当天的使用时间数据
             daily_usage = self.data.get('daily_usage', {})
             today_usage = daily_usage.get(today, {})
             
-            # 如果当天没有数据，则使用总时间数据
-            app_usage = today_usage.get('app_usage', self.data.get('app_usage', {}))
-            website_usage = today_usage.get('website_usage', self.data.get('website_usage', {}))
+            combined_app_usage = self.data.get('app_usage', {}).copy()
+            combined_website_usage = self.data.get('website_usage', {}).copy()
+            
+            today_app_usage = today_usage.get('app_usage') or {}
+            today_website_usage = today_usage.get('website_usage') or {}
+            
+            for app_name, app_data in today_app_usage.items():
+                combined_app_usage[app_name] = app_data
+            
+            for website_name, website_data in today_website_usage.items():
+                combined_website_usage[website_name] = website_data
+            
+            app_usage = combined_app_usage
+            website_usage = combined_website_usage
             
             # 计算应用使用时间的最大值，用于进度条
             app_times = [data.get('total_time', 0) for data in app_usage.values()]
@@ -411,8 +438,17 @@ class ScreenUsageTimePlugin(Plugin):
             for app_name, app_data in app_usage.items():
                 total_time = app_data.get('total_time', 0)
                 progress = (total_time / app_max_time) * 100 if app_max_time > 0 else 0
+                icon = app_data.get('icon', '')
+                # 对图标文件名进行base64编码
+                if icon:
+                    # 去除路径，只保留文件名
+                    icon_filename = os.path.basename(icon)
+                    # 对文件名进行base64编码
+                    encoded_icon = base64.b64encode(icon_filename.encode('utf-8')).decode('utf-8')
+                else:
+                    encoded_icon = ''
                 formatted_app_usage[app_name] = {
-                    'icon': app_data.get('icon', ''),
+                    'icon': encoded_icon,
                     'total_time': total_time,
                     'formatted_time': self.format_time(total_time),
                     'progress': min(progress, 100)  # 确保进度不超过100%
@@ -423,8 +459,17 @@ class ScreenUsageTimePlugin(Plugin):
             for website_name, website_data in website_usage.items():
                 total_time = website_data.get('total_time', 0)
                 progress = (total_time / website_max_time) * 100 if website_max_time > 0 else 0
+                icon = website_data.get('icon', '')
+                # 对图标文件名进行base64编码
+                if icon:
+                    # 去除路径，只保留文件名
+                    icon_filename = os.path.basename(icon)
+                    # 对文件名进行base64编码
+                    encoded_icon = base64.b64encode(icon_filename.encode('utf-8')).decode('utf-8')
+                else:
+                    encoded_icon = ''
                 formatted_website_usage[website_name] = {
-                    'icon': website_data.get('icon', ''),
+                    'icon': encoded_icon,
                     'total_time': total_time,
                     'formatted_time': self.format_time(total_time),
                     'progress': min(progress, 100)  # 确保进度不超过100%
