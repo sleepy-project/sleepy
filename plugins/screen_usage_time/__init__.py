@@ -223,23 +223,11 @@ class ScreenUsageTimePlugin(Plugin):
         """在后台线程中更新使用时间数据"""
         with self.data_context() as d:
             if app_usage:
-                existing_app_usage = d.get('app_usage', {})
-                existing_app_usage.update(app_usage)
-                d['app_usage'] = existing_app_usage
+                d['app_usage'] = app_usage
             if website_usage:
-                existing_website_usage = d.get('website_usage', {})
-                existing_website_usage.update(website_usage)
-                d['website_usage'] = existing_website_usage
+                d['website_usage'] = website_usage
             if daily_usage:
-                existing_daily_usage = d.get('daily_usage', {})
-                for date, date_data in daily_usage.items():
-                    if date not in existing_daily_usage:
-                        existing_daily_usage[date] = {'app_usage': {}, 'website_usage': {}}
-                    if 'app_usage' in date_data:
-                        existing_daily_usage[date]['app_usage'].update(date_data['app_usage'])
-                    if 'website_usage' in date_data:
-                        existing_daily_usage[date]['website_usage'].update(date_data['website_usage'])
-                d['daily_usage'] = existing_daily_usage
+                d['daily_usage'] = daily_usage
             d['last_updated'] = datetime.now().isoformat()
         
         self.global_data.last_updated = datetime.now().timestamp()
@@ -415,20 +403,18 @@ class ScreenUsageTimePlugin(Plugin):
             daily_usage = self.data.get('daily_usage', {})
             today_usage = daily_usage.get(today, {})
             
-            combined_app_usage = self.data.get('app_usage', {}).copy()
-            combined_website_usage = self.data.get('website_usage', {}).copy()
-            
             today_app_usage = today_usage.get('app_usage') or {}
             today_website_usage = today_usage.get('website_usage') or {}
             
-            for app_name, app_data in today_app_usage.items():
-                combined_app_usage[app_name] = app_data
+            if today_app_usage:
+                app_usage = today_app_usage
+            else:
+                app_usage = self.data.get('app_usage', {})
             
-            for website_name, website_data in today_website_usage.items():
-                combined_website_usage[website_name] = website_data
-            
-            app_usage = combined_app_usage
-            website_usage = combined_website_usage
+            if today_website_usage:
+                website_usage = today_website_usage
+            else:
+                website_usage = self.data.get('website_usage', {})
             
             # 计算应用使用时间的最大值，用于进度条
             app_times = [data.get('total_time', 0) for data in app_usage.values()]
