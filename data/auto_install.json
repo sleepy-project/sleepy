@@ -2,5 +2,6 @@
     "main-status",
     "device-auth",
     "device-status",
-    "frontend"
+    "frontend",
+    "custom-background-img"
 ]
