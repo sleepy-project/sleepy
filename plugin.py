@@ -27,6 +27,7 @@ from fastapi import FastAPI, APIRouter, Response, Request
 from pyproject_parser import PyProject
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version, InvalidVersion
+from pydantic import BaseModel as PydanticBaseModel
 import argparse
 import asyncio
 import inspect
@@ -85,7 +86,9 @@ class PluginBase:
         self.router: Optional[APIRouter] = None
         self._routes: List[PluginRoute] = []
         self._mounts: List[PluginMount] = []
-        self._cli_commands: List[CliCommand] = [] 
+        self._cli_commands: List[CliCommand] = []
+        self._config_schema: Optional[type[PydanticBaseModel]] = None
+        self._config_instance: Optional[PydanticBaseModel] = None
 
     def add_route(
         self,
@@ -157,6 +160,36 @@ class PluginBase:
     def get_cli_commands(self) -> List[CliCommand]:
         return self._cli_commands
     
+    def register_config(self, schema_class: type[PydanticBaseModel]) -> None:
+        """
+        注册插件配置 Schema。
+        插件应在 ``__init__`` 中调用此方法，在配置文件中使用 ``plugin.<plugin_folder_name>`` 定义配置项。
+        配置会在插件加载后（``on_load`` 结束后）由 PluginManager 自动解析并验证。
+
+        :param schema_class: Pydantic BaseModel 子类，定义配置结构与默认值
+        """
+        self._config_schema = schema_class
+        l.debug(f'Plugin {self.metadata.name} registered config schema: {schema_class.__name__}')
+
+    def get_config(self) -> PydanticBaseModel:
+        """
+        获取已验证的插件配置实例。
+        需先调用 ``register_config``，且只能在 ``on_load`` 执行完毕后（即 ``on_startup`` 及之后）使用。
+
+        :raises RuntimeError: 未注册 Schema 或配置尚未解析时抛出
+        """
+        if self._config_schema is None:
+            raise RuntimeError(
+                f'Plugin {self.metadata.name} has not registered a config schema. '
+                'Call register_config() in __init__ first.'
+            )
+        if self._config_instance is None:
+            raise RuntimeError(
+                f'Plugin {self.metadata.name} config has not been resolved yet. '
+                'Config is available after on_load() completes.'
+            )
+        return self._config_instance
+
     def register_hook(self, event_name: str, callback: Callable):
         plugin_manager.register_hook(event_name, callback)
 
@@ -287,6 +320,52 @@ class PluginManager:
 
         return True
 
+    def _resolve_plugin_config(self, plugin: PluginBase, plugin_name: str):
+        """解析并验证插件配置，将结果写入 plugin._config_instance"""
+        if plugin._config_schema is None:
+            return
+
+        # Lazy import to avoid circular dependency at module load time
+        from config import config as global_config
+
+        plugin_configs: Dict[str, Any] = getattr(global_config, 'plugin', {}) or {}
+
+        # 1. File-based config: look up by folder name then metadata name
+        #    (keys in config files can use hyphens, e.g. [plugin.main-status])
+        file_config: Dict[str, Any] = (
+            plugin_configs.get(plugin_name)
+            or plugin_configs.get(plugin.metadata.name)
+            or {}
+        )
+
+        # 2. Env-based config: SLEEPY_PLUGIN_<PLUGIN_ID>_<KEY>=value
+        #    Plugin ID = folder name uppercased with hyphens replaced by underscores.
+        #    Example: plugin "main-status" reads SLEEPY_PLUGIN_MAIN_STATUS_* vars.
+        #    Scanning env vars directly (instead of relying on config.plugin) ensures
+        #    correctness for plugin names with 3+ words where process_env_split nesting
+        #    would otherwise produce the wrong intermediate key.
+        env_id = plugin_name.replace('-', '_').upper()
+        env_prefix = f'SLEEPY_PLUGIN_{env_id}_'
+        env_config: Dict[str, Any] = {}
+        for k, v in os.environ.items():
+            k_upper = k.upper()
+            if k_upper.startswith(env_prefix):
+                remaining = k_upper[len(env_prefix):].lower()
+                env_config = u.deep_merge_dict(env_config, u.process_env_split(remaining.split('_'), v))
+
+        # Env vars take priority over file config (mirrors main config priority)
+        raw_config = u.deep_merge_dict(file_config, env_config)
+
+        try:
+            plugin._config_instance = plugin._config_schema(**raw_config)
+            l.debug(f'Plugin {plugin_name} config resolved: {plugin._config_instance}')
+        except Exception as ex:
+            l.error(f'Plugin {plugin_name} config validation failed: {ex}. Falling back to defaults.')
+            try:
+                plugin._config_instance = plugin._config_schema()
+            except Exception as ex2:
+                l.error(f'Plugin {plugin_name} failed to create default config: {ex2}')
+
     def load_plugin(self, plugin_name: str) -> bool:
         metadata = self.load_metadata(plugin_name)
         if not metadata: return False
@@ -318,6 +397,7 @@ class PluginManager:
                 l.error(f'Plugin {plugin_name} Plugin class must inherit from PluginBase')
                 return False
             plugin_instance.on_load()
+            self._resolve_plugin_config(plugin_instance, plugin_name)
             self.plugins[plugin_name] = plugin_instance
             self.metadata[plugin_name] = metadata
             if hasattr(plugin_instance, 'modify_response'):
