@@ -118,9 +118,14 @@ class ConfigModel(BaseModel):
     Refresh Token (管理登录) 过期时间 (天)
     '''
 
-    device_token_expires_days: PositiveInt = 365
+    plugin: t.Dict[str, t.Any] = {}
     '''
-    (默认) Device Token (设备更新状态密钥) 过期时间 (天)
+    插件配置
+    各插件的配置项，在配置文件的 `plugin.<plugin_name>` 下设置
+    - TOML: `[plugin.my-plugin]`
+    - YAML: `plugin.my-plugin.key: value`
+    - JSON: `{"plugin": {"my-plugin": {"key": "value"}}}`
+    - Env:  `SLEEPY_PLUGIN_MY_PLUGIN_KEY=value`
     '''
 
 
