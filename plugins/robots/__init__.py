@@ -4,7 +4,7 @@ from fnmatch import fnmatch
 from logging import getLogger
 
 from pydantic import BaseModel
-from flask import Response
+from flask import Response, request as flask_request
 
 import plugin as pl
 
@@ -33,12 +33,12 @@ l = getLogger(__name__)
 
 
 def header_handler(event: pl.AfterRequestHook):
-    if not event.request:
-        l.warning(f'No request arg in this AfterRequestHook event')
+    if not flask_request:
+        l.warning(f'No request argument in this AfterRequestHook event')
         return event
 
     for k, v in c.x_robots_rules.items():
-        if fnmatch(event.request.path, k):
+        if fnmatch(flask_request.path, k):
             event.response.headers.setdefault('X-Robots-Tag', v)
             l.debug(f'Matched {k} -> {v}')
             return event

@@ -41,7 +41,7 @@ def init():
     params = '&'.join(kv)
 
     p.add_index_card('steam', f'''
-<h3><b>Steam Status</h3>
+<h3><b>Steam Status</b></h3>
 <div style="display: flex; justify-content: center; align-items: center; width: 100%;">
     <iframe
         src="{c.base_url}/?{params}"
