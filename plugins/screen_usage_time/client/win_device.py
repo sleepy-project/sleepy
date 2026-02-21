@@ -323,10 +323,109 @@ async def send_tai_usage_data(db_data):
     try:
         url = f'{SERVER}/plugin/screen_usage_time/usage'
         
-        # 直接发送完整的数据库数据，包括所有表
-        data = db_data
+        today = datetime.now().strftime('%Y-%m-%d')
         
-        # 发送请求
+        data = {
+            'device-id': DEVICE_ID,
+            'device-name': DEVICE_SHOW_NAME,
+            'date': today,
+            'update-time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'screen_usage_time': {
+                'app_usage': {},
+                'website_usage': {}
+            }
+        }
+        
+        app_id_map = {}
+        if 'AppModels' in db_data:
+            for app in db_data['AppModels']:
+                app_id = app.get('ID', '')
+                app_name = app.get('Description') or app.get('Name', '')
+                icon_file = app.get('IconFile', '')
+                
+                if app_id:
+                    app_id_map[app_id] = {
+                        'name': app_name,
+                        'icon': os.path.basename(icon_file) if icon_file else ''
+                    }
+        
+        if 'DailyLogModels' in db_data:
+            for daily_log in db_data['DailyLogModels']:
+                date_str = daily_log.get('Date', '')
+                if not date_str:
+                    continue
+                
+                try:
+                    log_date = date_str.split(' ')[0]
+                except:
+                    log_date = date_str
+                
+                if log_date != today:
+                    continue
+                
+                app_id = daily_log.get('AppModelID', '')
+                duration = daily_log.get('Time', 0)
+                
+                if app_id in app_id_map:
+                    app_info = app_id_map[app_id]
+                    app_name = app_info['name']
+                    icon_file = app_info['icon']
+                    
+                    if app_name:
+                        if app_name not in data['screen_usage_time']['app_usage']:
+                            data['screen_usage_time']['app_usage'][app_name] = {
+                                'icon': icon_file,
+                                'total_time': 0
+                            }
+                        data['screen_usage_time']['app_usage'][app_name]['total_time'] += duration
+        
+        site_id_to_name = {}
+        site_id_to_icon = {}
+        if 'WebSiteModels' in db_data:
+            for website in db_data['WebSiteModels']:
+                site_id = website.get('ID', '')
+                website_name = website.get('Title', '')
+                icon_file = website.get('IconFile', '')
+                
+                if site_id and website_name:
+                    site_id_to_name[site_id] = website_name
+                    site_id_to_icon[site_id] = os.path.basename(icon_file) if icon_file else ''
+        
+        if 'WebBrowseLogModels' in db_data:
+            web_logs_by_site = {}
+            for web_log in db_data['WebBrowseLogModels']:
+                log_time = web_log.get('LogTime', '')
+                if not log_time:
+                    continue
+                
+                try:
+                    log_date = log_time.split(' ')[0]
+                except:
+                    log_date = log_time
+                
+                if log_date != today:
+                    continue
+                
+                site_id = web_log.get('SiteId', '')
+                duration = web_log.get('Duration', 0)
+                
+                if site_id not in web_logs_by_site:
+                    web_logs_by_site[site_id] = 0
+                web_logs_by_site[site_id] += duration
+            
+            for site_id, total_duration in web_logs_by_site.items():
+                if site_id in site_id_to_name:
+                    website_name = site_id_to_name[site_id]
+                    icon_file = site_id_to_icon.get(site_id, '')
+                else:
+                    website_name = f'Site {site_id}'
+                    icon_file = ''
+                
+                data['screen_usage_time']['website_usage'][website_name] = {
+                    'icon': icon_file,
+                    'total_time': total_duration
+                }
+        
         headers = {
             'Content-Type': 'application/json',
             'Sleepy-Secret': SECRET
@@ -381,7 +480,8 @@ async def upload_tai_icons(icons_path, file_type):
                 headers = {
                     'Content-Type': f'image/{file_type}',
                     'Sleepy-Secret': SECRET,
-                    'filename': encoded_filename
+                    'filename': encoded_filename,
+                    'x-device-id': DEVICE_ID
                 }
                 debug(f"准备上传图标：{filename} (编码后的文件名：{encoded_filename})")
                 
