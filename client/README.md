@@ -70,7 +70,6 @@
    3. [SleepyXposed](#sleepyxposed)
       1. [配置](#配置-4)
       2. [使用](#使用-3)
-      3. [Mod](#mod)
 4. [Linux](#linux)
    1. [LinuxScriptKDE](#linuxscriptkde)
       1. [配置](#配置-5)
