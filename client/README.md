@@ -15,6 +15,7 @@
 **Android**:
   - [AutoxjsScript](#AutoxjsScript) *(无需 Root, 需安装额外软件)*
   - [MagiskService](#MagiskService) *(需 Root)*
+  - [SleepyXposed](#SleepyXposed) *(需 Root, 需 Xposed 框架)*
 
 **Linux**:
   - [LinuxScriptKDE](#LinuxScriptKDE) *(KDE Python 脚本)*
@@ -39,71 +40,74 @@
 
 ## 快速跳转
 
-- [客户端文档](#客户端文档)
-  - [快速跳转](#快速跳转)
-- [Windows](#windows)
-  - [WinDevice](#windevice)
-    - [配置](#配置)
-    - [依赖安装](#依赖安装)
-    - [启动](#启动)
-    - [自启动](#自启动)
-      - [1. PM2](#1-pm2)
-      - [2. 自启脚本](#2-自启脚本)
-    - [无法获取网易云媒体信息](#无法获取网易云媒体信息)
-  - [Win Fast Settings](#win-fast-settings)
-    - [启动](#启动-1)
-  - [Win\_Simple](#win_simple)
-    - [配置](#配置-1)
-    - [使用](#使用)
-- [Android](#android)
-  - [AutoxjsScript](#autoxjsscript)
-    - [软件下载](#软件下载)
-    - [配置](#配置-2)
-    - [使用](#使用-1)
-    - [安卓低版本运行](#安卓低版本运行)
-    - [启动时报错](#启动时报错)
-  - [MagiskService](#magiskservice)
-    - [配置](#配置-3)
-    - [使用](#使用-2)
-    - [Mod](#mod)
-- [Linux](#linux)
-  - [LinuxScriptKDE](#linuxscriptkde)
-    - [配置](#配置-4)
-    - [使用](#使用-3)
-  - [LinuxScriptHyprland](#linuxscripthyprland)
-    - [配置](#配置-5)
-    - [使用](#使用-4)
-- [IOS/MacOS](#iosmacos)
-  - [AppleShortcuts](#appleshortcuts)
-    - [FullVer](#fullver)
-    - [FastVer](#fastver)
-  - [AppleScript](#applescript)
-    - [mac\_device\_sleepy\_AS](#mac_device_sleepy_as)
-      - [说明](#说明)
-      - [使用](#使用-5)
-      - [加入启动项开机启动](#加入启动项开机启动)
-- [CLI](#cli)
-  - [HomeworkDevice](#homeworkdevice)
-    - [配置](#配置-6)
-    - [使用](#使用-6)
-  - [CMDConsole](#cmdconsole)
-    - [配置](#配置-7)
-    - [使用](#使用-7)
-  - [CmdConsoleMulti](#cmdconsolemulti)
-    - [配置](#配置-8)
-    - [使用](#使用-8)
-- [Others](#others)
-  - [MinecraftScript](#minecraftscript)
-    - [Minescript](#minescript)
-    - [配置](#配置-9)
-    - [使用](#使用-9)
-    - [自启](#自启)
-  - [BrowserScript](#browserscript)
-    - [配置](#配置-10)
-  - [Zhixuewang](#zhixuewang)
-    - [配置](#配置-11)
-    - [使用](#使用-10)
-  - [Other repos](#other-repos)
+1. [客户端文档](#客户端文档)
+   1. [快速跳转](#快速跳转)
+2. [Windows](#windows)
+   1. [WinDevice](#windevice)
+      1. [配置](#配置)
+      2. [依赖安装](#依赖安装)
+      3. [启动](#启动)
+      4. [自启动](#自启动)
+         1. [1. PM2](#1-pm2)
+         2. [2. 自启脚本](#2-自启脚本)
+      5. [无法获取网易云媒体信息](#无法获取网易云媒体信息)
+   2. [Win Fast Settings](#win-fast-settings)
+      1. [启动](#启动-1)
+   3. [Win\_Simple](#win_simple)
+      1. [配置](#配置-1)
+      2. [使用](#使用)
+3. [Android](#android)
+   1. [AutoxjsScript](#autoxjsscript)
+      1. [软件下载](#软件下载)
+      2. [配置](#配置-2)
+      3. [使用](#使用-1)
+      4. [安卓低版本运行](#安卓低版本运行)
+      5. [启动时报错](#启动时报错)
+   2. [MagiskService](#magiskservice)
+      1. [配置](#配置-3)
+      2. [使用](#使用-2)
+      3. [Mod](#mod)
+   3. [SleepyXposed](#sleepyxposed)
+      1. [配置](#配置-4)
+      2. [使用](#使用-3)
+4. [Linux](#linux)
+   1. [LinuxScriptKDE](#linuxscriptkde)
+      1. [配置](#配置-5)
+      2. [使用](#使用-4)
+   2. [LinuxScriptHyprland](#linuxscripthyprland)
+      1. [配置](#配置-6)
+      2. [使用](#使用-5)
+5. [IOS/MacOS](#iosmacos)
+   1. [AppleShortcuts](#appleshortcuts)
+      1. [FullVer](#fullver)
+      2. [FastVer](#fastver)
+   2. [AppleScript](#applescript)
+      1. [mac\_device\_sleepy\_AS](#mac_device_sleepy_as)
+         1. [说明](#说明)
+         2. [使用](#使用-6)
+         3. [加入启动项开机启动](#加入启动项开机启动)
+6. [CLI](#cli)
+   1. [HomeworkDevice](#homeworkdevice)
+      1. [配置](#配置-7)
+      2. [使用](#使用-7)
+   2. [CMDConsole](#cmdconsole)
+      1. [配置](#配置-8)
+      2. [使用](#使用-8)
+   3. [CmdConsoleMulti](#cmdconsolemulti)
+      1. [配置](#配置-9)
+      2. [使用](#使用-9)
+7. [Others](#others)
+   1. [MinecraftScript](#minecraftscript)
+      1. [Minescript](#minescript)
+      2. [配置](#配置-10)
+      3. [使用](#使用-10)
+      4. [自启](#自启)
+   2. [BrowserScript](#browserscript)
+      1. [配置](#配置-11)
+   3. [Zhixuewang](#zhixuewang)
+      1. [配置](#配置-12)
+      2. [使用](#使用-11)
+   4. [Other repos](#other-repos)
 
 > [!TIP]
 > 欢迎提交 Issue / PR 贡献自己的脚本！
@@ -347,6 +351,40 @@ https://github.com/sleepy-project/sleepy/blob/7bb1866e8448d921f6161f1200164a1991
 
 - [./magisk-mod/config.cfg](./magisk-mod/config.cfg)
 - [说明 ~~(好像和原版一样)~~](./magisk-mod/README.md)
+
+## SleepyXposed
+
+> by [@RhenCloud](https://github.com/RhenCloud) <br/>
+> Source Code: [RhenCloud/SleepyXposed](https://github.com/RhenCloud/SleepyXposed)
+
+基于 Xposed 框架，对系统框架进行 hook 的客户端方案。
+
+### 配置
+
+启动应用后，进行以下配置：
+
+#### 必填项
+
+| 字段           | 说明                   | 示例                                     |
+| -------------- | ---------------------- | ---------------------------------------- |
+| **服务器地址** | Sleepy 服务器地址      | `https://your-sleepy.com`                |
+| **服务器密钥** | Sleepy 认证密钥        | `your-secret-key-here`                   |
+| **设备 ID**    | 唯一标识此设备         | `android-phone-1`                        |
+
+#### 可选项
+
+| 字段         | 说明                     | 默认值   |
+| ------------ | ------------------------ | -------- |
+| **显示名称** | 在 Sleepy 页面显示的名称 | 设备型号 |
+| **启用上报** | 是否启用数据上报         | 禁用     |
+
+### 使用
+
+1. 打开 Xposed/LSPosed 管理器
+2. 找到 **"SleepyXposed"** 模块
+3. **启用** 该模块
+4. 在作用域中勾选 **"系统框架"**
+5. 重启设备
 
 # Linux
 
