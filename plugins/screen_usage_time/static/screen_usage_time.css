@@ -147,7 +147,9 @@
 }
 
 .app-progress {
-  width: 100px;
+  flex: 0 0 15%;
+  min-width: 80px;
+  max-width: 200px;
   height: 8px;
   background: #f0f0f0;
   border-radius: 4px;

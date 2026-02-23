@@ -366,8 +366,13 @@ class ScreenUsageTimePlugin(Plugin):
             devices = self.data.get('devices', {})
             formatted_devices = {}
 
-            # 处理每个设备的数据
-            for device_id, device_data in devices.items():
+            sorted_devices = sorted(
+                devices.items(),
+                key=lambda x: x[1].get('last-update', ''),
+                reverse=True
+            )
+
+            for device_id, device_data in sorted_devices:
                 device_name = device_data.get('device-name', 'Unknown Device')
                 screen_usage_time = device_data.get('screen_usage_time', {})
                 app_usage = screen_usage_time.get('app_usage', {})

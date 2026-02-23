@@ -125,12 +125,12 @@ class ScreenUsageTime {
         
         return Object.entries(devices).map(([device_id, device_data]) => {
             const { 'device-name': device_name, app_usage, website_usage, 'last-update': last_update, 'last-date': last_date } = device_data;
+            const hasWebsiteUsage = website_usage && Object.keys(website_usage).length > 0;
             
-            return `
-                <div class="device-card">
-                    <h4>${device_name || 'Unknown Device'}</h4>
-                    ${last_date ? `<p class="device-date">日期: ${last_date}</p>` : ''}
-                    ${last_update ? `<p class="device-update">更新时间: ${new Date(last_update).toLocaleString('zh-CN')}</p>` : ''}
+            let usageHtml = '';
+            
+            if (hasWebsiteUsage) {
+                usageHtml = `
                     <div class="usage-container">
                         <!-- 应用使用时长 -->
                         <div class="usage-section">
@@ -147,7 +147,26 @@ class ScreenUsageTime {
                                 ${this.renderUsageItems(website_usage, device_id)}
                             </div>
                         </div>
-                    </div>
+                    </div>`;
+            } else {
+                usageHtml = `
+                    <div class="usage-container">
+                        <!-- 应用使用时长 -->
+                        <div class="usage-section">
+                            <h5>应用</h5>
+                            <div class="usage-list app-list">
+                                ${this.renderUsageItems(app_usage, device_id)}
+                            </div>
+                        </div>
+                    </div>`;
+            }
+            
+            return `
+                <div class="device-card">
+                    <h4>${device_name || 'Unknown Device'}</h4>
+                    ${last_date ? `<p class="device-date">日期: ${last_date}</p>` : ''}
+                    ${last_update ? `<p class="device-update">更新时间: ${new Date(last_update).toLocaleString('zh-CN')}</p>` : ''}
+                    ${usageHtml}
                 </div>
             `;
         }).join('');
