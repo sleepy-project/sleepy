@@ -68,8 +68,9 @@
       2. [使用](#使用-2)
       3. [Mod](#mod)
    3. [SleepyXposed](#sleepyxposed)
-      1. [配置](#配置-4)
-      2. [使用](#使用-3)
+      1. [下载](#下载-1)
+      2. [配置](#配置-4)
+      3. [使用](#使用-3)
 4. [Linux](#linux)
    1. [LinuxScriptKDE](#linuxscriptkde)
       1. [配置](#配置-5)
@@ -358,6 +359,10 @@ https://github.com/sleepy-project/sleepy/blob/7bb1866e8448d921f6161f1200164a1991
 > Source Code: [RhenCloud/SleepyXposed](https://github.com/RhenCloud/SleepyXposed)
 
 基于 Xposed 框架，对系统框架进行 hook 的客户端方案。
+
+### 下载
+
+请前往 [RhenCloud/SleepyXposed (Release)](https://github.com/RhenCloud/SleepyXposed/releases) 下载
 
 ### 配置
 
