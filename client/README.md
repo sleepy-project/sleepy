@@ -474,7 +474,7 @@ https://github.com/sleepy-project/sleepy/blob/7fc21380a259247533db76f3a0443fa550
 
 #### 使用
 
-下载镜像安装包后双击打开，将应用图标拖拽到Applications（应用程序）即可完成安装，安装后启动就能够在菜单栏看到一只小猫的图标，点击能够看到各种选项
+下载镜像安装包后双击打开，将应用图标拖拽到Applications（应用程序）即可完成安装，安装后启动就能够在菜单栏看到一只[小猫](https://www.iconfont.cn/search/index?searchType=icon&q=maomi_news&page=1&fromCollection=-1)的图标，点击能够看到各种选项
 
 <img width="420" height="420" alt="截屏2026-03-19 00 02 43" src="https://github.com/user-attachments/assets/681d9f64-9696-41a8-8e87-110159c6e0c4" />
 <img width="200" height="199" alt="截屏2026-03-19 00 07 17" src="https://github.com/user-attachments/assets/a14f1960-2c46-40a0-a0f1-8f68f4dea5da" />
