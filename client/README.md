@@ -84,7 +84,7 @@
       1. [FullVer](#fullver)
       2. [FastVer](#fastver)
    2. [SwiftUI版本](#swiftui版本)
-      1. [Sleepy_SwiftUI](#sleepy_swiftui点击下载安装包)
+      1. [Sleepy_SU](#sleepy_su点击下载安装包)
          1. [说明](#说明)
          2. [使用](#使用-6)
    3. [AppleScript版本](#applescript版本)
@@ -464,7 +464,7 @@ https://github.com/sleepy-project/sleepy/blob/7fc21380a259247533db76f3a0443fa550
 > 
 > by: [@wan0ge](https://github.com/wan0ge) & AI
 
-### [Sleepy_SwiftUI](https://github.com/sleepy-project/sleepy/blob/main/client/mac_device_SleepySU_Installer.dmg)（点击下载安装包）
+### [Sleepy_SU](https://github.com/sleepy-project/sleepy/blob/main/client/mac_device_SleepySU_Installer.dmg)（点击下载安装包）
 
 #### 说明
 
@@ -476,10 +476,10 @@ https://github.com/sleepy-project/sleepy/blob/7fc21380a259247533db76f3a0443fa550
 
 下载镜像安装包后双击打开，将应用图标拖拽到Applications（应用程序）即可完成安装，安装后启动就能够在菜单栏看到一只[小猫](https://www.iconfont.cn/search/index?searchType=icon&q=maomi_news&page=1&fromCollection=-1)的图标，点击能够看到各种选项
 
-<img width="420" height="420" alt="截屏2026-03-19 00 02 43" src="https://github.com/user-attachments/assets/681d9f64-9696-41a8-8e87-110159c6e0c4" />
+<img width="420" height="420" alt="截屏2026-03-19 07 01 45" src="https://github.com/user-attachments/assets/169aca20-ca12-4317-9b01-ffe2d53905d4" />
 <img width="200" height="199" alt="截屏2026-03-19 00 07 17" src="https://github.com/user-attachments/assets/a14f1960-2c46-40a0-a0f1-8f68f4dea5da" />
 
-首次运行需要先去配置选项进行基础配置，注意更改都需要点击底部的保存才会应用（配置文件储存在 ~/Library/Preferences/com.Sleepy-SwiftUI.plist）
+首次运行需要先去配置选项进行基础配置，注意更改都需要点击底部的保存才会应用（配置文件储存在 ~/Library/Preferences/com.Sleepy-SU.plist）
 
 <img width="420" height="420" alt="截屏2026-03-19 00 10 26" src="https://github.com/user-attachments/assets/e642bea3-d2fe-40a4-a3a4-46d5328a9a0e" />
 <img width="420" height="420" alt="截屏2026-03-19 00 10 31" src="https://github.com/user-attachments/assets/ee10dbab-1141-4ded-827a-82038c38b9d2" />
