@@ -468,9 +468,9 @@ https://github.com/sleepy-project/sleepy/blob/7fc21380a259247533db76f3a0443fa550
 
 #### 说明
 
-使用 [Swift](https://zh.wikipedia.org/wiki/Swift%E8%AA%9E%E8%A8%80) 编写的mac os自动更新状态脚本
+使用 [Swift](https://zh.wikipedia.org/wiki/Swift%E8%AA%9E%E8%A8%80) 编写的mac os自动更新状态脚本，与AppleScript版本差异是有图形化UI，并且支持锁屏、睡眠、关机状态检测上报未使用
 
-
+#### 使用
 
 
 ## [AppleScript版本](https://github.com/wan0ge/Extract-pure-links/blob/master/image/mac_device_SleepyAS_Installer.dmg)
@@ -485,24 +485,30 @@ https://github.com/sleepy-project/sleepy/blob/7fc21380a259247533db76f3a0443fa550
 
 使用 [AppleScript](https://zh.wikipedia.org/zh-cn/AppleScript) 编写的mac os自动更新状态脚本
 
-因为检测锁屏和关机前上报未在使用实现困难，分为两个脚本，`Sleepy_AS`为主脚本，`Sleepy_AS_false`为停止并上报脚本
+因为AS脚本检测锁屏和关机前上报未在使用实现困难，分为两个脚本，`Sleepy_AS`为上报状态主脚本，`Sleepy_AS_false`为停止并上报未使用脚本
 
 主脚本也支持长时间窗口无变化上报未在使用、忽略特定窗口/进程，如果觉得关机前启动副脚本不够便利也可以搭配快捷指令使用，创建一个快捷指令选择“打开App”和“关机”并选中Sleepy_AS_false就可以当一个伪一键关机脚本使用，或者其他方式搭配“打开App”使用。
 
 #### 使用
 
 镜像安装包后双击打开，将两个脚本图标拖拽到Applications（应用程序）即可完成安装
+
 <img width="520" height="520" alt="截屏2026-03-18 09 23 44" src="https://github.com/user-attachments/assets/368838e3-eccd-4e4d-85dd-bf8af8f887cd" />
 
-首次安装后需要启动主脚本`Sleepy_AS`根据弹窗填写配置
+首次安装后需要先启动主脚本`Sleepy_AS`根据弹窗填写配置（配置文件储存在 ~/Library/Preferences/com.sleepy.as.app.plist ）
 
+<img width="520" height="520" alt="截屏2026-03-18 23 08 52" src="https://github.com/user-attachments/assets/1f68ac7b-73f2-4749-a77a-d08f561749b9" />
 
+填写完基础的API地址、密钥、设备ID、设备名称就能够看到运行弹窗，点击 直接运行 会申请辅助权限，进行授权后即可开始使用，脚本会在后台自动获取窗口名并上报（如果需要配置忽略窗口名请点击配置高级选项）
 
-然后在保存的位置双击启动`mac_device_sleepy_AS`分别给予辅助权限、自动化权限就能够后台检测窗口名称上报，关机前启动`mac_device_sleepy_AS_false`就可以停止主脚本并上报未在使用。
+<img width="520" height="520" alt="截屏2026-03-18 23 09 31" src="https://github.com/user-attachments/assets/3228e93d-b5e2-4893-a83f-ac202f8da8d0" />
+<img width="372" height="505" alt="截屏2026-03-18 21 53 02" src="https://github.com/user-attachments/assets/00d34e88-36d6-436c-9fed-a50150e9e187" />
 
-<img width="520" height="520" alt="截屏2025-09-07 19 08 55" src="https://github.com/user-attachments/assets/6ca50fe1-40ef-4e26-a2de-f74084a39792" style="display: inline-block" />
-<img width="320" height="320" alt="截屏2025-09-07 17 46 00" src="https://github.com/user-attachments/assets/e95b46b3-89ad-4ff7-a92c-718920c1c914" style="display: inline-block" />
+如果有使用浏览器、Apple Music、Spotify程序会申请对应的自动化权限，用于获取更准确的窗口名与音乐播放信息（音乐播放信息暂时只支持Apple Music、Spotify，默认开启，开启后播放时会追加到窗口名后面显示）
 
+<img width="372" height="379" alt="截屏2026-03-18 23 21 12" src="https://github.com/user-attachments/assets/8fe9c562-9bef-48bd-9ddb-5a7d92eff26d" />
+
+关机或锁屏前启动`Sleepy_AS_false`就可以停止主脚本并上报未在使用（同样需要辅助等等权限），关闭脚本不需要再次填写配置会自动读取主脚本的配置
 
 权限说明：
 
