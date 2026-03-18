@@ -23,7 +23,8 @@
 
 **IOS/MacOS**:
   - [AppleShortcuts](#AppleShortcuts) *(需要快捷指令拥有“获取前台 App”命令)*
-  - [AppleScript](#AppleScript) *(支持macOS 10.9+)*
+  - [SwiftUI版本](#SwiftUI版本) *(支持macOS 13.0+)*
+  - [AppleScript版本](#AppleScript版本) *(支持macOS 10.9+)*
 
 **CLI** (命令行):
   - [HomeworkDevice](#HomeworkDevice)
@@ -82,8 +83,12 @@
    1. [AppleShortcuts](#appleshortcuts)
       1. [FullVer](#fullver)
       2. [FastVer](#fastver)
-   2. [AppleScript](#applescript)
-      1. [mac\_device\_sleepy\_AS](#mac_device_sleepy_as)
+   2. [SwiftUI版本](#swiftui版本)
+      1. [Sleepy_SwiftUI](#sleepy_swiftui)
+         1. [说明](#说明)
+         2. [使用](#使用-6)
+   3. [AppleScript版本](#appleScript版本)
+      1. [Sleepy_AS](#sleepy_as)
          1. [说明](#说明)
          2. [使用](#使用-6)
          3. [加入启动项开机启动](#加入启动项开机启动)
@@ -453,19 +458,34 @@ https://github.com/sleepy-project/sleepy/blob/7fc21380a259247533db76f3a0443fa550
 > [!TIP]
 > 你可以将该快捷指令设置为操作按钮、控制中心按钮、锁定屏幕按钮、敲击 2 / 3 下背板指令来快捷使用
 
-## [AppleScript](https://github.com/sleepy-project/sleepy/blob/main/client/mac_device_sleepy_AS.zip)
+## [SwiftUI版本](https://github.com/sleepy-project/sleepy/blob/main/client/mac_device_SleepySU_Installer.dmg)
+
+> 支持macOS 13.0+
+> 
+> by: [@wan0ge](https://github.com/wan0ge) & AI
+
+### [Sleepy_SwiftUI](https://github.com/wan0ge/Extract-pure-links/blob/master/image/mac_device_SleepyAS_Installer.dmg)（点击下载安装包）
+
+#### 说明
+
+使用 [Swift](https://zh.wikipedia.org/wiki/Swift%E8%AA%9E%E8%A8%80) 编写的mac os自动更新状态脚本
+
+
+
+
+## [AppleScript版本](https://github.com/wan0ge/Extract-pure-links/blob/master/image/mac_device_SleepyAS_Installer.dmg)
 
 > 支持macOS 10.9+
 > 
 > by: [@wan0ge](https://github.com/wan0ge) & AI
 
-### [mac_device_sleepy_AS](https://github.com/sleepy-project/sleepy/blob/main/client/mac_device_sleepy_AS.zip)
+### [Sleepy_AS](https://github.com/wan0ge/Extract-pure-links/blob/master/image/mac_device_SleepyAS_Installer.dmg)（点击下载安装包）
 
 #### 说明
 
 使用 [AppleScript](https://zh.wikipedia.org/zh-cn/AppleScript) 编写的mac os自动更新状态脚本
 
-因为检测锁屏和关机前上报未在使用实现困难，分为两个脚本，`mac_device_sleepy_AS`为主脚本，`mac_device_sleepy_AS_false`为停止并上报脚本
+因为检测锁屏和关机前上报未在使用实现困难，分为两个脚本，`Sleepy_AS`为主脚本，`Sleepy_AS_false`为停止并上报脚本
 
 主脚本也支持长时间窗口无变化上报未在使用、忽略特定窗口/进程，如果觉得关机前启动副脚本不够便利也可以搭配快捷指令使用，创建一个快捷指令选择“运行AppleScript”和“关机”就可以当一个伪一键关机脚本使用，或者其他方式搭配“运行AppleScript”使用。
 
