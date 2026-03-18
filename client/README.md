@@ -468,7 +468,7 @@ https://github.com/sleepy-project/sleepy/blob/7fc21380a259247533db76f3a0443fa550
 
 #### 说明
 
-使用 [Swift](https://zh.wikipedia.org/wiki/Swift%E8%AA%9E%E8%A8%80) 编写的mac os原生自动更新状态轻应用，与AppleScript版本差异是有图形化UI，并且支持锁屏、睡眠、关机状态检测上报未使用
+使用 [Swift](https://zh.wikipedia.org/wiki/Swift%E8%AA%9E%E8%A8%80) 编写的 macOS 原生自动更新状态轻应用，与AppleScript版本差异是有图形化UI，并且支持锁屏、睡眠、关机状态检测上报未使用
 
 原生开发轻量级低占用，拥有图形化UI，支持锁屏、睡眠、关机状态的检测上报未使用，支持Apple Music、Spotify的音乐播放状态上报，支持忽略进程、窗口名，支持长时间窗口无变化上报未在使用
 
