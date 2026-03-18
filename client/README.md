@@ -1,4 +1,4 @@
-<img width="692" height="654" alt="截屏2026-03-19 00 10 35" src="https://github.com/user-attachments/assets/af047100-f266-46d5-a16e-d3603d26eb24" /># 客户端文档
+# 客户端文档
 
 此目录存储客户端 (用于更新状态/设备状态)
 
@@ -474,37 +474,35 @@ https://github.com/sleepy-project/sleepy/blob/7fc21380a259247533db76f3a0443fa550
 
 #### 使用
 
-下载镜像安装包后双击打开，将应用图标拖拽到Applications（应用程序）即可完成安装
+下载镜像安装包后双击打开，将应用图标拖拽到Applications（应用程序）即可完成安装，安装后启动就能够在菜单栏看到一只小猫的图标，点击能够看到各种选项
 
-<img width="520" height="520" alt="截屏2026-03-19 00 02 43" src="https://github.com/user-attachments/assets/681d9f64-9696-41a8-8e87-110159c6e0c4" />
-
-安装后启动就能够在菜单栏看到一只小猫的图标，点击能够看到各种选项
-
+<img width="420" height="420" alt="截屏2026-03-19 00 02 43" src="https://github.com/user-attachments/assets/681d9f64-9696-41a8-8e87-110159c6e0c4" />
 <img width="200" height="199" alt="截屏2026-03-19 00 07 17" src="https://github.com/user-attachments/assets/a14f1960-2c46-40a0-a0f1-8f68f4dea5da" />
 
-首次运行需要先去配置选项进行基础配置（注意更改都需要点击底部的保存才会应用）
+首次运行需要先去配置选项进行基础配置，注意更改都需要点击底部的保存才会应用（配置文件储存在 ~/Library/Preferences/com.Sleepy-SwiftUI.plist）
 
-<img width="692" height="654" alt="截屏2026-03-19 00 10 26" src="https://github.com/user-attachments/assets/e642bea3-d2fe-40a4-a3a4-46d5328a9a0e" />
-<img width="692" height="654" alt="截屏2026-03-19 00 10 31" src="https://github.com/user-attachments/assets/ee10dbab-1141-4ded-827a-82038c38b9d2" />
-<img width="692" height="654" alt="截屏2026-03-19 00 10 35" src="https://github.com/user-attachments/assets/586ed836-b5d7-4975-8de6-167861006032" />
+<img width="420" height="420" alt="截屏2026-03-19 00 10 26" src="https://github.com/user-attachments/assets/e642bea3-d2fe-40a4-a3a4-46d5328a9a0e" />
+<img width="420" height="420" alt="截屏2026-03-19 00 10 31" src="https://github.com/user-attachments/assets/ee10dbab-1141-4ded-827a-82038c38b9d2" />
 
-然后点击开启状态更新，应用会先申请辅助权限
+然后在菜单栏点击开启状态更新，应用会先申请辅助权限
 
 <img width="632" height="393" alt="截屏2026-03-19 00 12 51" src="https://github.com/user-attachments/assets/768e2b4a-d6fd-4bc1-8fd5-4b2113c23320" />
+<img width="372" height="379" alt="截屏2026-03-18 04 25 26" src="https://github.com/user-attachments/assets/334ebcce-9af1-4d01-9d12-14c44a784653" />
 
-给予权限之后就能够看到正在运行了，遇到关机、睡眠、锁屏、强制退出都会进行上报未使用，只要在配置里面开启`开机自启动`与`启动应用时默认开启上报`就可以无感使用了
+
+给予权限之后就能够看到正在运行了
 
 <img width="300" height="195" alt="截屏2026-03-19 00 14 20" src="https://github.com/user-attachments/assets/df05ee58-a7be-43aa-95f1-ffe887af7903" />
 
-如果有使用浏览器、Apple Music、Spotify应用会申请对应的自动化权限，用于获取更准确的窗口名与音乐播放信息（音乐播放信息暂时只支持Apple Music、Spotify，默认开启，开启后播放时会追加到窗口名后面显示）
+遇到关机、睡眠、锁屏、强制退出都会进行上报未使用，只要在配置里面开启`开机自启动`与`启动应用时默认开启上报`就可以无感使用了
 
-<img width="372" height="379" alt="截屏2026-03-18 04 25 26" src="https://github.com/user-attachments/assets/f03f93d2-3a41-4b50-b41c-e30c99263d64" />
+另外如果有使用浏览器、Apple Music、Spotify应用会申请对应的自动化权限，用于获取更准确的窗口名与音乐播放信息（音乐播放信息暂时只支持Apple Music、Spotify，默认开启，开启后播放时会追加到窗口名后面显示）
 
 权限说明：
 
-辅助权限为主要权限，用来检测窗口名进程名（权限入口：系统设置→隐私与安全性→辅助功能）
+`辅助权限`为主要权限，用来检测窗口名进程名（权限入口：系统设置→隐私与安全性→辅助功能）
 
-自动化权限用于更精准的获取浏览器标签页标题以及AppleMusic、Spotify的播放信息获取，因为用到了应用自身的一些API所以需要这个权限访问（权限入口：系统设置→隐私与安全性→自动化）
+`自动化权限`用于更精准的获取浏览器标签页标题以及AppleMusic、Spotify的播放信息获取，因为用到了应用自身的一些API所以需要这个权限访问（权限入口：系统设置→隐私与安全性→自动化）
 
 > [!WARNING]
 > *mac os对应用权限给予有问题，请尽量保存运行后不要更改文件位置以及移除权限*
@@ -537,22 +535,25 @@ https://github.com/sleepy-project/sleepy/blob/7fc21380a259247533db76f3a0443fa550
 
 <img width="520" height="520" alt="截屏2026-03-18 23 08 52" src="https://github.com/user-attachments/assets/1f68ac7b-73f2-4749-a77a-d08f561749b9" />
 
-填写完基础的API地址、密钥、设备ID、设备名称就能够看到运行弹窗，点击 直接运行 会申请辅助权限，进行授权后即可开始使用，脚本会在后台自动获取窗口名并上报（如果需要配置忽略窗口名请点击配置高级选项）
+填写完基础的API地址、密钥、设备ID、设备名称就能够看到运行弹窗
 
 <img width="520" height="520" alt="截屏2026-03-18 23 09 31" src="https://github.com/user-attachments/assets/3228e93d-b5e2-4893-a83f-ac202f8da8d0" />
+
+点击`直接运行`会申请辅助权限，进行授权后即可开始使用，脚本会在后台自动获取窗口名并上报（如果需要配置忽略窗口名请点击配置高级选项）
+
 <img width="372" height="505" alt="截屏2026-03-18 21 53 02" src="https://github.com/user-attachments/assets/00d34e88-36d6-436c-9fed-a50150e9e187" />
+<img width="372" height="379" alt="截屏2026-03-18 23 21 12" src="https://github.com/user-attachments/assets/e73bd5a0-70b9-4087-b4e0-2968d6a3fbea" />
+
 
 如果有使用浏览器、Apple Music、Spotify程序会申请对应的自动化权限，用于获取更准确的窗口名与音乐播放信息（音乐播放信息暂时只支持Apple Music、Spotify，默认开启，开启后播放时会追加到窗口名后面显示）
-
-<img width="372" height="379" alt="截屏2026-03-18 23 21 12" src="https://github.com/user-attachments/assets/8fe9c562-9bef-48bd-9ddb-5a7d92eff26d" />
 
 关机或锁屏前启动`Sleepy_AS_false`就可以停止主脚本并上报未在使用（同样需要辅助等等权限），关闭脚本不需要再次填写配置会自动读取主脚本的配置
 
 权限说明：
 
-辅助权限为主要权限，用来检测窗口名进程名（权限入口：系统设置→隐私与安全性→辅助功能）
+`辅助权限`为主要权限，用来检测窗口名进程名（权限入口：系统设置→隐私与安全性→辅助功能）
 
-自动化权限用于更精准的获取浏览器标签页标题以及AppleMusic、Spotify的播放信息获取，因为用到了应用自身的一些API所以需要这个权限访问（权限入口：系统设置→隐私与安全性→自动化）
+`自动化权限`用于更精准的获取浏览器标签页标题以及AppleMusic、Spotify的播放信息获取，因为用到了应用自身的一些API所以需要这个权限访问（权限入口：系统设置→隐私与安全性→自动化）
 
 > [!WARNING]
 > *mac os对应用权限给予有问题，请尽量保存运行后不要更改文件位置以及移除权限*
