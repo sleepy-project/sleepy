@@ -87,7 +87,7 @@
       1. [Sleepy_SwiftUI](#sleepy_swiftui点击下载安装包)
          1. [说明](#说明)
          2. [使用](#使用-6)
-   3. [AppleScript版本](#appleScript版本)
+   3. [AppleScript版本](#appleacript版本)
       1. [Sleepy_AS](#sleepy_as点击下载安装包)
          1. [说明](#说明-1)
          2. [使用](#使用-7)
