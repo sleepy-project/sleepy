@@ -1,4 +1,4 @@
-# 客户端文档
+<img width="692" height="654" alt="截屏2026-03-19 00 10 35" src="https://github.com/user-attachments/assets/af047100-f266-46d5-a16e-d3603d26eb24" /># 客户端文档
 
 此目录存储客户端 (用于更新状态/设备状态)
 
@@ -23,7 +23,7 @@
 
 **IOS/MacOS**:
   - [AppleShortcuts](#AppleShortcuts) *(需要快捷指令拥有“获取前台 App”命令)*
-  - [SwiftUI版本](#SwiftUI版本) *(支持macOS 13.0+)*
+  - [SwiftUI版本](#SwiftUI版本) *(mac原生应用 支持macOS 13.0+)*
   - [AppleScript版本](#AppleScript版本) *(支持macOS 10.9+)*
 
 **CLI** (命令行):
@@ -89,8 +89,8 @@
          2. [使用](#使用-6)
    3. [AppleScript版本](#appleScript版本)
       1. [Sleepy_AS](#sleepy_as)
-         1. [说明](#说明)
-         2. [使用](#使用-6)
+         1. [说明](#说明-1)
+         2. [使用](#使用-7)
          3. [加入启动项开机启动](#加入启动项开机启动)
 6. [CLI](#cli)
    1. [HomeworkDevice](#homeworkdevice)
@@ -464,14 +464,52 @@ https://github.com/sleepy-project/sleepy/blob/7fc21380a259247533db76f3a0443fa550
 > 
 > by: [@wan0ge](https://github.com/wan0ge) & AI
 
-### [Sleepy_SwiftUI](https://github.com/wan0ge/Extract-pure-links/blob/master/image/mac_device_SleepyAS_Installer.dmg)（点击下载安装包）
+### [Sleepy_SwiftUI](https://github.com/sleepy-project/sleepy/blob/main/client/mac_device_SleepySU_Installer.dmg)（点击下载安装包）
 
 #### 说明
 
-使用 [Swift](https://zh.wikipedia.org/wiki/Swift%E8%AA%9E%E8%A8%80) 编写的mac os自动更新状态脚本，与AppleScript版本差异是有图形化UI，并且支持锁屏、睡眠、关机状态检测上报未使用
+使用 [Swift](https://zh.wikipedia.org/wiki/Swift%E8%AA%9E%E8%A8%80) 编写的mac os原生自动更新状态轻应用，与AppleScript版本差异是有图形化UI，并且支持锁屏、睡眠、关机状态检测上报未使用
+
+原生开发轻量级低占用，拥有图形化UI，支持锁屏、睡眠、关机状态的检测上报未使用，支持Apple Music、Spotify的音乐播放状态上报，支持忽略进程、窗口名，支持长时间窗口无变化上报未在使用
 
 #### 使用
 
+下载镜像安装包后双击打开，将应用图标拖拽到Applications（应用程序）即可完成安装
+
+<img width="520" height="520" alt="截屏2026-03-19 00 02 43" src="https://github.com/user-attachments/assets/681d9f64-9696-41a8-8e87-110159c6e0c4" />
+
+安装后启动就能够在菜单栏看到一只小猫的图标，点击能够看到各种选项
+
+<img width="200" height="199" alt="截屏2026-03-19 00 07 17" src="https://github.com/user-attachments/assets/a14f1960-2c46-40a0-a0f1-8f68f4dea5da" />
+
+首次运行需要先去配置选项进行基础配置（注意更改都需要点击底部的保存才会应用）
+
+<img width="692" height="654" alt="截屏2026-03-19 00 10 26" src="https://github.com/user-attachments/assets/e642bea3-d2fe-40a4-a3a4-46d5328a9a0e" />
+<img width="692" height="654" alt="截屏2026-03-19 00 10 31" src="https://github.com/user-attachments/assets/ee10dbab-1141-4ded-827a-82038c38b9d2" />
+<img width="692" height="654" alt="截屏2026-03-19 00 10 35" src="https://github.com/user-attachments/assets/586ed836-b5d7-4975-8de6-167861006032" />
+
+然后点击开启状态更新，应用会先申请辅助权限
+
+<img width="632" height="393" alt="截屏2026-03-19 00 12 51" src="https://github.com/user-attachments/assets/768e2b4a-d6fd-4bc1-8fd5-4b2113c23320" />
+
+给予权限之后就能够看到正在运行了，遇到关机、睡眠、锁屏、强制退出都会进行上报未使用，只要在配置里面开启`开机自启动`与`启动应用时默认开启上报`就可以无感使用了
+
+<img width="300" height="195" alt="截屏2026-03-19 00 14 20" src="https://github.com/user-attachments/assets/df05ee58-a7be-43aa-95f1-ffe887af7903" />
+
+如果有使用浏览器、Apple Music、Spotify应用会申请对应的自动化权限，用于获取更准确的窗口名与音乐播放信息（音乐播放信息暂时只支持Apple Music、Spotify，默认开启，开启后播放时会追加到窗口名后面显示）
+
+<img width="372" height="379" alt="截屏2026-03-18 04 25 26" src="https://github.com/user-attachments/assets/f03f93d2-3a41-4b50-b41c-e30c99263d64" />
+
+权限说明：
+
+辅助权限为主要权限，用来检测窗口名进程名（权限入口：系统设置→隐私与安全性→辅助功能）
+
+自动化权限用于更精准的获取浏览器标签页标题以及AppleMusic、Spotify的播放信息获取，因为用到了应用自身的一些API所以需要这个权限访问（权限入口：系统设置→隐私与安全性→自动化）
+
+> [!WARNING]
+> *mac os对应用权限给予有问题，请尽量保存运行后不要更改文件位置以及移除权限*
+> 
+> 如果只上报进程名而不是窗口名说明辅助权限有问题，请在 系统设置→隐私与安全性→辅助功能 里将本应用删除再手动添加给予权限即可正常
 
 ## [AppleScript版本](https://github.com/wan0ge/Extract-pure-links/blob/master/image/mac_device_SleepyAS_Installer.dmg)
 
@@ -483,7 +521,7 @@ https://github.com/sleepy-project/sleepy/blob/7fc21380a259247533db76f3a0443fa550
 
 #### 说明
 
-使用 [AppleScript](https://zh.wikipedia.org/zh-cn/AppleScript) 编写的mac os自动更新状态脚本
+使用 [AppleScript](https://zh.wikipedia.org/zh-cn/AppleScript) 编写的mac os自动更新状态脚本，如果macOS > 13.0 推荐使用上方的SwiftUI版本
 
 因为AS脚本检测锁屏和关机前上报未在使用实现困难，分为两个脚本，`Sleepy_AS`为上报状态主脚本，`Sleepy_AS_false`为停止并上报未使用脚本
 
@@ -491,7 +529,7 @@ https://github.com/sleepy-project/sleepy/blob/7fc21380a259247533db76f3a0443fa550
 
 #### 使用
 
-镜像安装包后双击打开，将两个脚本图标拖拽到Applications（应用程序）即可完成安装
+下载镜像安装包后双击打开，将两个脚本图标拖拽到Applications（应用程序）即可完成安装
 
 <img width="520" height="520" alt="截屏2026-03-18 09 23 44" src="https://github.com/user-attachments/assets/368838e3-eccd-4e4d-85dd-bf8af8f887cd" />
 
