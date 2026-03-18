@@ -519,7 +519,7 @@ https://github.com/sleepy-project/sleepy/blob/7fc21380a259247533db76f3a0443fa550
 
 #### 说明
 
-使用 [AppleScript](https://zh.wikipedia.org/zh-cn/AppleScript) 编写的mac os自动更新状态脚本，如果macOS > 13.0 推荐使用上方的SwiftUI版本
+使用 [AppleScript](https://zh.wikipedia.org/zh-cn/AppleScript) 编写的 macOS 自动更新状态脚本，如果macOS > 13.0 推荐使用上方的SwiftUI版本
 
 因为AS脚本检测锁屏和关机前上报未在使用实现困难，分为两个脚本，`Sleepy_AS`为上报状态主脚本，`Sleepy_AS_false`为停止并上报未使用脚本
 
