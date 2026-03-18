@@ -487,30 +487,16 @@ https://github.com/sleepy-project/sleepy/blob/7fc21380a259247533db76f3a0443fa550
 
 因为检测锁屏和关机前上报未在使用实现困难，分为两个脚本，`Sleepy_AS`为主脚本，`Sleepy_AS_false`为停止并上报脚本
 
-主脚本也支持长时间窗口无变化上报未在使用、忽略特定窗口/进程，如果觉得关机前启动副脚本不够便利也可以搭配快捷指令使用，创建一个快捷指令选择“运行AppleScript”和“关机”就可以当一个伪一键关机脚本使用，或者其他方式搭配“运行AppleScript”使用。
+主脚本也支持长时间窗口无变化上报未在使用、忽略特定窗口/进程，如果觉得关机前启动副脚本不够便利也可以搭配快捷指令使用，创建一个快捷指令选择“打开App”和“关机”并选中Sleepy_AS_false就可以当一个伪一键关机脚本使用，或者其他方式搭配“打开App”使用。
 
 #### 使用
 
-下载后解压至想保存的位置然后使用 Automator（自动操作）打开
+镜像安装包后双击打开，将两个脚本图标拖拽到Applications（应用程序）即可完成安装
+<img width="520" height="520" alt="截屏2026-03-18 09 23 44" src="https://github.com/user-attachments/assets/368838e3-eccd-4e4d-85dd-bf8af8f887cd" />
 
-<img width="520" height="520" alt="截屏2025-08-06 01 26 06" src="https://github.com/user-attachments/assets/44a1123b-fe1c-4c17-b85f-79bf55efb636" />
-<img width="520" height="520" alt="截屏2025-08-06 01 26 39" src="https://github.com/user-attachments/assets/df481c9a-b5f6-47d8-89fd-911fa73cf9fa" />
-<img width="520" height="520" alt="截屏2025-08-06 01 27 21" src="https://github.com/user-attachments/assets/f65a37eb-3d43-4eae-a122-f8b3cfa42bec" />
+首次安装后需要启动主脚本`Sleepy_AS`根据弹窗填写配置
 
-根据首行提示滑到中底部分别修改两个脚本的具体配置并保存（找不到位置可以使用Command+F查找"配置项"）
 
-```
-	===== 配置项 =====
-	set deviceID to "mac" -- 你的设备 id, 唯一
-	set showName to "mac" -- 你的设备名称, 将显示在网页上
-	set secret to "绝对猜不出来的密码" -- 你的密钥
-	set endpoint to "https://al.u311533.nyat.app:32848/device/set" -- 你的完整 API 地址，以 `/device/set` 结尾 
-	
-	set ignoreAppNames to {"改成你想忽略的进程名", "两种忽略都支持部分匹配", "ControlCenter"}
-	set ignoreWindowTitles to {"改成你想忽略的窗口名", "输入法", "控制中心"}
-	set idleTimeoutSeconds to 10800 -- 设置窗口多久未变化上报未使用，默认3小时 单位秒
-	set inputIdleThresholdSeconds to 600 --  设置窗口未变化上报前提：鼠标空闲时间，只有鼠标也达标才会上报，默认10分钟 单位秒
-```
 
 然后在保存的位置双击启动`mac_device_sleepy_AS`分别给予辅助权限、自动化权限就能够后台检测窗口名称上报，关机前启动`mac_device_sleepy_AS_false`就可以停止主脚本并上报未在使用。
 
@@ -522,16 +508,16 @@ https://github.com/sleepy-project/sleepy/blob/7fc21380a259247533db76f3a0443fa550
 
 辅助权限为主要权限，用来检测窗口名进程名（权限入口：系统设置→隐私与安全性→辅助功能）
 
-自动化权限用于更精准的获取浏览器标签页标题，因为用到了浏览器自身的一些API所以需要这个权限访问（权限入口：系统设置→隐私与安全性→自动化）
+自动化权限用于更精准的获取浏览器标签页标题以及AppleMusic、Spotify的播放信息获取，因为用到了应用自身的一些API所以需要这个权限访问（权限入口：系统设置→隐私与安全性→自动化）
 
 > [!WARNING]
-> *mac os对AppleScript权限给予有问题，请尽量保存运行后不要更改文件位置也不要再次更改内容*
+> *mac os对应用权限给予有问题，请尽量保存运行后不要更改文件位置以及移除权限*
 > 
 > 如果只上报进程名而不是窗口名说明辅助权限有问题，请在 系统设置→隐私与安全性→辅助功能 里将本脚本删除再手动添加给予权限即可正常
 
 #### 加入启动项开机启动
 
-在 系统设置→通用→登录项→登录时打开 中将主脚本加入即可
+在 系统设置→通用→登录项→登录时打开 中将`Sleepy_AS`主脚本加入即可
 
 # CLI
 
