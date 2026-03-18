@@ -479,7 +479,9 @@ https://github.com/sleepy-project/sleepy/blob/7fc21380a259247533db76f3a0443fa550
 <img width="420" height="420" alt="截屏2026-03-19 07 01 45" src="https://github.com/user-attachments/assets/169aca20-ca12-4317-9b01-ffe2d53905d4" />
 <img width="200" height="199" alt="截屏2026-03-19 00 07 17" src="https://github.com/user-attachments/assets/a14f1960-2c46-40a0-a0f1-8f68f4dea5da" />
 
-首次运行需要先去配置选项进行基础配置，注意更改都需要点击底部的保存才会应用（配置文件储存在 ~/Library/Preferences/com.Sleepy-SU.plist）
+首次运行需要先去配置选项进行基础配置，注意更改都需要点击底部的保存才会应用
+
+> 配置文件储存在 ~/Library/Preferences/com.Sleepy-SU.plist
 
 <img width="420" height="420" alt="截屏2026-03-19 00 10 26" src="https://github.com/user-attachments/assets/e642bea3-d2fe-40a4-a3a4-46d5328a9a0e" />
 <img width="420" height="420" alt="截屏2026-03-19 00 10 31" src="https://github.com/user-attachments/assets/ee10dbab-1141-4ded-827a-82038c38b9d2" />
@@ -496,7 +498,7 @@ https://github.com/sleepy-project/sleepy/blob/7fc21380a259247533db76f3a0443fa550
 
 遇到关机、睡眠、锁屏、强制退出都会进行上报未使用，只要在配置里面开启`开机自启动`与`启动应用时默认开启上报`就可以无感使用了
 
-另外如果有使用浏览器、Apple Music、Spotify应用会申请对应的自动化权限，用于获取更准确的窗口名与音乐播放信息（音乐播放信息暂时只支持Apple Music、Spotify，默认开启，开启后播放时会追加到窗口名后面显示）
+> 如果有使用浏览器、Apple Music、Spotify应用会申请对应的自动化权限，用于获取更准确的窗口名与音乐播放信息（音乐播放信息暂时只支持Apple Music、Spotify，默认开启，开启后播放时会追加到窗口名后面显示）
 
 权限说明：
 
@@ -531,13 +533,12 @@ https://github.com/sleepy-project/sleepy/blob/7fc21380a259247533db76f3a0443fa550
 
 <img width="520" height="520" alt="截屏2026-03-18 09 23 44" src="https://github.com/user-attachments/assets/368838e3-eccd-4e4d-85dd-bf8af8f887cd" />
 
-首次安装后需要先启动主脚本`Sleepy_AS`根据弹窗填写配置（配置文件储存在 ~/Library/Preferences/com.sleepy.as.app.plist ）
+首次安装后需要先启动主脚本`Sleepy_AS`根据弹窗填写配置，填写完基础的API地址、密钥、设备ID、设备名称就能够看到运行弹窗
 
-<img width="520" height="520" alt="截屏2026-03-18 23 08 52" src="https://github.com/user-attachments/assets/1f68ac7b-73f2-4749-a77a-d08f561749b9" />
+> 配置文件储存在 ~/Library/Preferences/com.sleepy.as.app.plist
 
-填写完基础的API地址、密钥、设备ID、设备名称就能够看到运行弹窗
-
-<img width="520" height="520" alt="截屏2026-03-18 23 09 31" src="https://github.com/user-attachments/assets/3228e93d-b5e2-4893-a83f-ac202f8da8d0" />
+<img width="420" height="420" alt="截屏2026-03-18 23 08 52" src="https://github.com/user-attachments/assets/1f68ac7b-73f2-4749-a77a-d08f561749b9" />
+<img width="420" height="420" alt="截屏2026-03-18 23 09 31" src="https://github.com/user-attachments/assets/3228e93d-b5e2-4893-a83f-ac202f8da8d0" />
 
 点击`直接运行`会申请辅助权限，进行授权后即可开始使用，脚本会在后台自动获取窗口名并上报（如果需要配置忽略窗口名请点击配置高级选项）
 
@@ -545,7 +546,7 @@ https://github.com/sleepy-project/sleepy/blob/7fc21380a259247533db76f3a0443fa550
 <img width="372" height="379" alt="截屏2026-03-18 23 21 12" src="https://github.com/user-attachments/assets/e73bd5a0-70b9-4087-b4e0-2968d6a3fbea" />
 
 
-如果有使用浏览器、Apple Music、Spotify程序会申请对应的自动化权限，用于获取更准确的窗口名与音乐播放信息（音乐播放信息暂时只支持Apple Music、Spotify，默认开启，开启后播放时会追加到窗口名后面显示）
+> 如果有使用浏览器、Apple Music、Spotify程序会申请对应的自动化权限，用于获取更准确的窗口名与音乐播放信息（音乐播放信息暂时只支持Apple Music、Spotify，默认开启，开启后播放时会追加到窗口名后面显示）
 
 关机或锁屏前启动`Sleepy_AS_false`就可以停止主脚本并上报未在使用（同样需要辅助等等权限），关闭脚本不需要再次填写配置会自动读取主脚本的配置
 
