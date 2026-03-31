@@ -25,12 +25,12 @@ from pywintypes import error as pywinerror
 # ----- 配置部分 -----
 
 # 服务端配置
-SERVER_URL = "https://look.ltan.top"  # 服务端地址，末尾不带斜杠
-SECRET = "x,/f%@Pi%!9@|8f-K?2KSm"  # 与服务端一致的密钥
+SERVER_URL = "http://localhost:9010"  # 服务端地址，末尾不带斜杠
+SECRET = "wyf9test"  # 与服务端一致的密钥
 
 # 设备配置
-DEVICE_ID = "jpay"  # 设备标识符（唯一）
-DEVICE_SHOW_NAME = "J-PAY 电脑"  # 显示名称
+DEVICE_ID = "device-1"  # 设备标识符（唯一）
+DEVICE_SHOW_NAME = "MyDevice1"  # 显示名称
 
 # 媒体设备配置（如果启用独立媒体设备）
 MEDIA_DEVICE_ID = "media-device"
