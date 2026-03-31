@@ -25,12 +25,12 @@ from pywintypes import error as pywinerror
 # ----- 配置部分 -----
 
 # 服务端配置
-SERVER_URL = ""  # 服务端地址，末尾不带斜杠
-SECRET = ""  # 与服务端一致的密钥
+SERVER_URL = "https://look.ltan.top"  # 服务端地址，末尾不带斜杠
+SECRET = "x,/f%@Pi%!9@|8f-K?2KSm"  # 与服务端一致的密钥
 
 # 设备配置
-DEVICE_ID = ""  # 设备标识符（唯一）
-DEVICE_SHOW_NAME = ""  # 显示名称
+DEVICE_ID = "jpay"  # 设备标识符（唯一）
+DEVICE_SHOW_NAME = "J-PAY 电脑"  # 显示名称
 
 # 媒体设备配置（如果启用独立媒体设备）
 MEDIA_DEVICE_ID = "media-device"
@@ -194,6 +194,10 @@ class SleepyAPIClient:
         """获取统计信息"""
         return await self._make_request("GET", "/api/metrics")
 
+    async def close(self):
+        """关闭客户端，释放资源"""
+        pass
+
 # ----- 系统信息获取 -----
 
 
@@ -325,8 +329,9 @@ def get_window_title() -> str:
 
 # 全局变量
 tray_icon = None
-is_running = True
+is_running_event = None
 client = None
+main_loop = None
 
 
 def on_shutdown(hwnd, msg, wparam, lparam):
@@ -401,18 +406,24 @@ def create_default_icon():
         draw.ellipse((4, 4, 60, 60), fill=(0, 120, 215))
         draw.text((16, 16), "Z", fill=(255, 255, 255))
         return img
-    except:
+    except Exception as e:
+        log(f"创建默认托盘图标失败: {e}")
         return None
 
 
 def on_exit(icon, item):
     """退出程序"""
-    global is_running, client
     log("用户从托盘菜单退出程序...")
-    is_running = False
     icon.stop()
     global tray_icon
     tray_icon = None
+    
+    if main_loop is not None and is_running_event is not None:
+        is_running_event.clear()
+        main_loop.call_soon_threadsafe(main_loop.stop)
+    else:
+        import sys
+        sys.exit(0)
 
 
 def toggle_console(icon, item):
@@ -431,6 +442,7 @@ def setup_tray():
     try:
         icon = create_default_icon()
         menu = pystray.Menu(
+            pystray.MenuItem('显示/隐藏日志窗口', toggle_console),
             pystray.MenuItem('退出', on_exit)
         )
         global tray_icon
@@ -585,7 +597,11 @@ async def update_media_status(client: SleepyAPIClient):
 
 async def main_loop():
     """主循环"""
-    global client
+    global client, main_loop, is_running_event
+    global MINIMIZE_TO_TRAY
+    main_loop = asyncio.get_running_loop()
+    is_running_event = asyncio.Event()
+    is_running_event.set()
     client = SleepyAPIClient(SERVER_URL, SECRET, PROXY)
 
     log(f"启动 Sleepy 客户端，设备: {DEVICE_SHOW_NAME} ({DEVICE_ID})")
@@ -608,10 +624,16 @@ async def main_loop():
 
     # 设置系统托盘
     if MINIMIZE_TO_TRAY:
-        setup_tray()
+        tray_started = setup_tray()
+        if not tray_started:
+            log("系统托盘功能不可用，程序将以无托盘模式运行，最小化到托盘将被禁用")
+            try:
+                MINIMIZE_TO_TRAY = False
+            except Exception:
+                log("无法在运行时修改 MINIMIZE_TO_TRAY 配置，请在配置文件中关闭该选项以避免托盘相关错误")
 
     try:
-        while is_running:
+        while is_running_event.is_set():
             await update_device_status(client)
             await update_media_status(client)
             await asyncio.sleep(CHECK_INTERVAL)
@@ -636,6 +658,12 @@ async def main_loop():
                 log(f"最终状态发送失败: {resp.status_code} - {resp.text}")
         except Exception as e:
             log(f"最终状态发送异常: {e}")
+
+        # 关闭客户端释放资源
+        try:
+            await client.close()
+        except:
+            pass
 
         log("客户端已关闭")
 
