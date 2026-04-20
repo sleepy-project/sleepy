@@ -99,13 +99,15 @@ python win_device.py
   "update-time": "2026-02-23 20:24:25",
   "screen_usage_time": {
     "app_usage": {
-      "Chrome": {
+      "com.github.chrome": {
+        "name": "Chrome",
         "icon": "chrome.png",
         "total_time": 3600
       }
     },
     "website_usage": {
-      "Bilibili": {
+      "com.bilibili": {
+        "name": "Bilibili",
         "icon": "bilibili.ico",
         "total_time": 1800
       }
@@ -116,6 +118,8 @@ python win_device.py
 
 ### 前端响应数据格式
 
+其中 `icon` 字段为 base64 编码后的图标文件名。
+
 ```json
 {
   "screen_usage_time": {
@@ -123,15 +127,17 @@ python win_device.py
       "device-computer": {
         "device-name": "香草的电脑",
         "app_usage": {
-          "Chrome": {
-            "icon": "Y2hyb21lLnBuZw==", // base64 编码后的图标文件名
+          "com.github.chrome": {
+            "name": "Chrome",
+            "icon": "Y2hyb21lLnBuZw==",
             "total_time": 3600,
             "formatted_time": "1 小时 0 分 0 秒",
             "progress": 100
           }
         },
         "website_usage": {
-          "Bilibili": {
+          "com.bilibili": {
+            "name": "Bilibili",
             "icon": "YmlsaWJpbGkuaWNv",
             "total_time": 1800,
             "formatted_time": "30 分 0 秒",
