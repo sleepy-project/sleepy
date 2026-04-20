@@ -387,7 +387,8 @@ class ScreenUsageTimePlugin(Plugin):
                 website_max_time = max(website_times) if website_times else 1
 
                 formatted_app_usage = {}
-                for app_name, app_data in app_usage.items():
+                for app_id, app_data in app_usage.items():
+                    app_name = app_data.get('name', app_id)
                     total_time = app_data.get('total_time', 0)
                     progress = (total_time / app_max_time) * 100 if app_max_time > 0 else 0
                     icon = app_data.get('icon', '')
@@ -396,7 +397,8 @@ class ScreenUsageTimePlugin(Plugin):
                         encoded_icon = base64.b64encode(icon_filename.encode('utf-8')).decode('utf-8')
                     else:
                         encoded_icon = ''
-                    formatted_app_usage[app_name] = {
+                    formatted_app_usage[app_id] = {
+                        'name': app_name,
                         'icon': encoded_icon,
                         'total_time': total_time,
                         'formatted_time': self.format_time(total_time),
@@ -404,7 +406,8 @@ class ScreenUsageTimePlugin(Plugin):
                     }
 
                 formatted_website_usage = {}
-                for website_name, website_data in website_usage.items():
+                for site_id, website_data in website_usage.items():
+                    website_name = website_data.get('name', site_id)
                     total_time = website_data.get('total_time', 0)
                     progress = (total_time / website_max_time) * 100 if website_max_time > 0 else 0
                     icon = website_data.get('icon', '')
@@ -413,7 +416,8 @@ class ScreenUsageTimePlugin(Plugin):
                         encoded_icon = base64.b64encode(icon_filename.encode('utf-8')).decode('utf-8')
                     else:
                         encoded_icon = ''
-                    formatted_website_usage[website_name] = {
+                    formatted_website_usage[site_id] = {
+                        'name': website_name,
                         'icon': encoded_icon,
                         'total_time': total_time,
                         'formatted_time': self.format_time(total_time),
@@ -431,9 +435,9 @@ class ScreenUsageTimePlugin(Plugin):
                 # 截取前N个应用
                 filtered_app_usage = {}
                 count = 0
-                for app_name, app_data in sorted_app_usage.items():
+                for app_id, app_data in sorted_app_usage.items():
                     if count < top_apps:
-                        filtered_app_usage[app_name] = app_data
+                        filtered_app_usage[app_id] = app_data
                         count += 1
                     else:
                         break
@@ -441,9 +445,9 @@ class ScreenUsageTimePlugin(Plugin):
                 # 截取前N个网站
                 filtered_website_usage = {}
                 count = 0
-                for website_name, website_data in sorted_website_usage.items():
+                for site_id, website_data in sorted_website_usage.items():
                     if count < top_websites:
-                        filtered_website_usage[website_name] = website_data
+                        filtered_website_usage[site_id] = website_data
                         count += 1
                     else:
                         break

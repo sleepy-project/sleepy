@@ -372,12 +372,13 @@ async def send_tai_usage_data(db_data):
                     icon_file = app_info['icon']
                     
                     if app_name:
-                        if app_name not in data['screen_usage_time']['app_usage']:
-                            data['screen_usage_time']['app_usage'][app_name] = {
+                        if app_id not in data['screen_usage_time']['app_usage']:
+                            data['screen_usage_time']['app_usage'][app_id] = {
+                                'name': app_name,
                                 'icon': icon_file,
                                 'total_time': 0
                             }
-                        data['screen_usage_time']['app_usage'][app_name]['total_time'] += duration
+                        data['screen_usage_time']['app_usage'][app_id]['total_time'] += duration
         
         site_id_to_name = {}
         site_id_to_icon = {}
@@ -421,7 +422,8 @@ async def send_tai_usage_data(db_data):
                     website_name = f'Site {site_id}'
                     icon_file = ''
                 
-                data['screen_usage_time']['website_usage'][website_name] = {
+                data['screen_usage_time']['website_usage'][site_id] = {
+                    'name': website_name,
                     'icon': icon_file,
                     'total_time': total_duration
                 }
