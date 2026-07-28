@@ -6,13 +6,15 @@ import requests
 import logging
 import threading
 import ctypes
-import win32gui,win32con,win32api # type: ignore
+import tkinter as tk
+from tkinter import ttk, scrolledtext, messagebox
+import win32gui, win32con, win32api
 from time import time, sleep
 import pystray
-from PIL import Image
+from PIL import Image, ImageDraw
 
 #cd client/Win_Simple
-#pyinstaller -F -n Win_Simple.exe --icon=zmal.ico --hidden-import=win32gui --hidden-import=win32con --hidden-import=win32api --hidden-import=requests --hidden-import=pystray --hidden-import=PIL.Image --hidden-import=PIL.ImageDraw script.py
+#pyinstaller -F -n Win_Simple.exe --icon=zmal.ico --hidden-import=win32gui --hidden-import=win32con --hidden-import=win32api --hidden-import=requests --hidden-import=pystray --hidden-import=PIL.Image --hidden-import=PIL.ImageDraw --hidden-import=tkinter script.py
 
 # --------------------------
 # 配置管理类
@@ -48,8 +50,8 @@ LOGLEVEL = INFO
 LOG_FILE = False
 # 黑名单配置（竖线分隔）
 BLACKLIST = ExampleApp|Privacy Information
-# 启动时隐藏控制台窗口
-HIDE_CONSOLE_ON_START = False
+# 启动时最小化到托盘
+MINIMIZE_TO_TRAY = False
 """
     
     def __init__(self):
@@ -60,10 +62,9 @@ HIDE_CONSOLE_ON_START = False
     def _ensure_config_exists(self):
         """创建默认配置文件"""
         if not os.path.exists(self.config_path):
-            logging.warning("⚠️ 配置文件不存在，正在创建默认 config.ini...")
             with open(self.config_path, "w", encoding="utf-8") as f:
                 f.write(self._DEFAULT_CONFIG)
-            sys.exit(f"✅ 默认配置文件已创建: {self.config_path}, 可以冲了")
+            logging.warning(f"配置文件已创建: {self.config_path}")
     
     def _load_config(self):
         """加载并验证配置"""
@@ -91,15 +92,14 @@ HIDE_CONSOLE_ON_START = False
             self.log_level = self._get_log_level(fallback='INFO')
             self.log_file = self.config.getboolean('settings', 'LOG_FILE', fallback=True)
 
-            # 控制台配置
-            self.hide_console_on_start = self.config.getboolean('settings', 'HIDE_CONSOLE_ON_START', fallback=False)
+            # 界面配置
+            self.minimize_to_tray = self.config.getboolean('settings', 'MINIMIZE_TO_TRAY', fallback=False)
 
             # 黑名单配置
             self.blacklist = self._parse_list('BLACKLIST', fallback=['User1', 'User2'])
         
         except Exception as e:
             logging.error(f'配置文件打不开惹: {e}')
-            sys.exit(1)
     
     def _parse_list(self, key: str, fallback="") -> list:
         """解析竖线分隔的配置项"""
@@ -115,6 +115,23 @@ HIDE_CONSOLE_ON_START = False
             'ERROR': logging.ERROR
         }
         return level_map.get(self.config.get('settings', 'LOGLEVEL', fallback=fallback), logging.INFO)
+
+    def save(self):
+        """保存配置到文件"""
+        self.config.set('settings', 'SERVER', self.server)
+        self.config.set('settings', 'SECRET', self.secret)
+        self.config.set('settings', 'DEVICE_ID', self.device_id)
+        self.config.set('settings', 'DEVICE_SHOW_NAME', self.device_show_name)
+        self.config.set('settings', 'CHECK_INTERVAL', str(self.check_interval))
+        self.config.set('settings', 'REVERSE_APP_NAME', str(self.reverse_app_name))
+        self.config.set('settings', 'MOUSE_IDLE_TIME', str(self.mouse_idle_time))
+        self.config.set('settings', 'MOUSE_MOVE_THRESHOLD', str(self.mouse_move_threshold))
+        self.config.set('settings', 'LOGLEVEL', self.config.get('settings', 'LOGLEVEL', fallback='INFO'))
+        self.config.set('settings', 'LOG_FILE', str(self.log_file))
+        self.config.set('settings', 'MINIMIZE_TO_TRAY', str(self.minimize_to_tray))
+        
+        with open(self.config_path, 'w', encoding='utf-8') as f:
+            self.config.write(f)
 
 # --------------------------
 # 设备状态管理
@@ -134,24 +151,19 @@ class DeviceState:
         current_pos = win32api.GetCursorPos()
         current_time = time()
         
-        # 计算移动距离
         dx = abs(current_pos[0] - self.last_mouse_pos[0])
         dy = abs(current_pos[1] - self.last_mouse_pos[1])
         distance = (dx ** 2 + dy ** 2) ** 0.5
         
-        # 超过阈值视为活动
         if distance > self.config.mouse_move_threshold:
             self.last_mouse_pos = current_pos
             self.last_mouse_time = current_time
             if self.is_mouse_idle:
-                logging.debug('你起了？饭被我吃完了~')
                 self.is_mouse_idle = False
             return False
         
-        # 检测空闲超时
         if (current_time - self.last_mouse_time) > (self.config.mouse_idle_time * 60):
             if not self.is_mouse_idle:
-                logging.debug('主人睡着了吗，那我要偷吃惹')
                 self.is_mouse_idle = True
             return True
         return self.is_mouse_idle
@@ -169,9 +181,10 @@ class DeviceState:
 # --------------------------
 class DeviceMonitor:
     """设备状态监控器"""
-    def __init__(self, config: AppConfig, state: DeviceState):
+    def __init__(self, config: AppConfig, state: DeviceState, log_callback=None):
         self.config = config
         self.state = state
+        self.log_callback = log_callback
         self._setup_logging()
     
     def _setup_logging(self):
@@ -187,10 +200,21 @@ class DeviceMonitor:
             handlers=handlers
         )
     
+    def log(self, message, level='info'):
+        """输出日志"""
+        if self.log_callback:
+            self.log_callback(message, level)
+        if level == 'error':
+            logging.error(message)
+        elif level == 'warning':
+            logging.warning(message)
+        else:
+            logging.info(message)
+    
     def send_state(self, using: bool, window: str = None):
         """发送状态到服务器"""
         if any(blacklisted in window for blacklisted in self.config.blacklist):
-            logging.debug(f'应用 {window} 在黑名单中，忽略上报')
+            self.log(f'应用 {window} 在黑名单中，忽略上报', 'debug')
             return
         try:
             resp = requests.post(
@@ -208,7 +232,7 @@ class DeviceMonitor:
             resp.raise_for_status()
             self.state.last_window = window
         except requests.RequestException as e:
-            logging.warning(f'主人反省一下自己干了什么: {str(e)}')
+            self.log(f'网络错误: {str(e)}', 'warning')
     
     def _should_update(self, new_window: str, mouse_idle: bool) -> bool:
         """判断是否需要更新状态"""
@@ -219,81 +243,253 @@ class DeviceMonitor:
         if window not in self.config.skipped_names:
             return window
         
-        logging.debug(f'不要~ {window}')
-        # 使用上次有效窗口
         fallback = self.state.last_window if self.state.last_window not in self.config.skipped_names else ''
         return fallback if fallback else None
     
     def update_state(self):
         """执行状态检测和更新"""
         try:
-            # 获取当前窗口
             raw_window = win32gui.GetWindowText(win32gui.GetForegroundWindow())
             current_window = self.state.process_window_title(raw_window)
             mouse_idle = self.state.check_mouse_idle()
             
-            # 处理跳过窗口
             processed_window = self._handle_skipped_window(current_window)
             if not processed_window:
                 return
             
-            # 判断使用状态
             using = not (processed_window in self.config.not_using_names or mouse_idle)
             
-            # 发送更新
             if self._should_update(processed_window, mouse_idle):
-                logging.info(f'{using},主人在 {processed_window}')
+                self.log(f'{using}, 主人在 {processed_window}')
                 self.send_state(using, processed_window)
         except Exception as e:
             self.send_state(False, [str(e)])
-            logging.error(f'呼呼呼~{str(e)}')
+            self.log(f'错误: {str(e)}', 'error')
 
 # --------------------------
-# 系统功能模块
+# GUI 应用
 # --------------------------
+class AppGUI:
+    """图形界面应用"""
+    MAX_LOG_LINES = 1000  # 最大日志行数，防止内存溢出
 
-# 控制台窗口控制
-def get_console_window():
-    """获取控制台窗口句柄"""
-    return ctypes.windll.kernel32.GetConsoleWindow()
+    def __init__(self, config: AppConfig, monitor: DeviceMonitor):
+        self.config = config
+        self.monitor = monitor
+        self.root = tk.Tk()
+        self.tray_icon = None
+        self._exit_flag = threading.Event()
+        self._log_lock = threading.Lock()  # 日志线程锁
+        self._setup_window()
+        self._setup_widgets()
+        self._setup_tray()
 
-def is_console_visible() -> bool:
-    """检查控制台窗口是否可见（线程安全）"""
-    hwnd = get_console_window()
-    if not hwnd:
-        return False
-    # 使用 IsWindowVisible API 检查窗口可见性
-    return ctypes.windll.user32.IsWindowVisible(hwnd) != 0
+    def _setup_window(self):
+        """设置窗口"""
+        self.root.title("Win_Simple 监控")
+        self.root.geometry("600x500")
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
-def is_console_minimized() -> bool:
-    """检查控制台窗口是否最小化"""
-    hwnd = get_console_window()
-    if not hwnd:
-        return False
-    # 使用 IsIconic API 检查窗口是否最小化
-    return ctypes.windll.user32.IsIconic(hwnd) != 0
+        # 设置窗口图标
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), 'zmal.ico')
+        if os.path.exists(icon_path):
+            try:
+                self.root.iconbitmap(icon_path)
+            except:
+                pass
 
-def hide_console():
-    """隐藏控制台窗口"""
-    hwnd = get_console_window()
-    if hwnd:
-        win32gui.ShowWindow(hwnd, win32con.SW_HIDE)
+    def _setup_widgets(self):
+        """设置界面控件"""
+        # 创建标签页
+        notebook = ttk.Notebook(self.root)
+        notebook.pack(fill='both', expand=True, padx=5, pady=5)
 
-def show_console():
-    """显示控制台窗口"""
-    hwnd = get_console_window()
-    if hwnd:
-        win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
-        win32gui.SetForegroundWindow(hwnd)
+        # 日志标签页
+        log_frame = ttk.Frame(notebook)
+        notebook.add(log_frame, text='日志')
 
-def toggle_console():
-    """切换控制台窗口显示状态"""
-    # 如果窗口可见且不是最小化状态，则隐藏
-    if is_console_visible() and not is_console_minimized():
-        hide_console()
-    else:
-        show_console()
+        self.log_text = scrolledtext.ScrolledText(log_frame, state='disabled', wrap='word')
+        self.log_text.pack(fill='both', expand=True, padx=5, pady=5)
 
+        # 设置日志回调
+        self.monitor.log_callback = self._append_log
+
+        # 配置标签页
+        config_frame = ttk.Frame(notebook)
+        notebook.add(config_frame, text='配置')
+
+        # 配置表单
+        self._setup_config_form(config_frame)
+
+        # 状态栏
+        status_frame = ttk.Frame(self.root)
+        status_frame.pack(fill='x', side='bottom')
+        self.status_label = ttk.Label(status_frame, text="就绪")
+        self.status_label.pack(side='left', padx=5)
+
+    def _setup_config_form(self, parent):
+        """设置配置表单"""
+        # 创建滚动区域
+        canvas = tk.Canvas(parent)
+        scrollbar = ttk.Scrollbar(parent, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # 配置项
+        row = 0
+        config_fields = [
+            ('服务器地址:', 'server'),
+            ('密钥:', 'secret'),
+            ('设备ID:', 'device_id'),
+            ('显示名称:', 'device_show_name'),
+            ('检查间隔(秒):', 'check_interval'),
+            ('鼠标空闲时间(分钟):', 'mouse_idle_time'),
+            ('鼠标移动阈值(像素):', 'mouse_move_threshold'),
+        ]
+
+        self.config_vars = {}
+
+        for label_text, key in config_fields:
+            ttk.Label(scrollable_frame, text=label_text).grid(row=row, column=0, sticky='w', padx=5, pady=2)
+            var = tk.StringVar(value=str(getattr(self.config, key)))
+            entry = ttk.Entry(scrollable_frame, textvariable=var, width=40)
+            entry.grid(row=row, column=1, sticky='w', padx=5, pady=2)
+            self.config_vars[key] = var
+            row += 1
+
+        # 复选框配置
+        ttk.Label(scrollable_frame, text='启动时最小化到托盘:').grid(row=row, column=0, sticky='w', padx=5, pady=2)
+        self.minimize_var = tk.BooleanVar(value=self.config.minimize_to_tray)
+        ttk.Checkbutton(scrollable_frame, variable=self.minimize_var).grid(row=row, column=1, sticky='w', padx=5, pady=2)
+        row += 1
+
+        # 保存按钮
+        ttk.Button(scrollable_frame, text='保存配置', command=self._save_config).grid(row=row, column=0, columnspan=2, pady=10)
+
+    def _setup_tray(self):
+        """设置托盘图标"""
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), 'zmal.ico')
+
+        # 创建图标
+        icon_image = self._create_tray_icon(icon_path)
+
+        # 创建菜单
+        menu = pystray.Menu(
+            pystray.MenuItem('显示窗口', self._show_window, default=True),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem('退出', self._exit_app)
+        )
+
+        self.tray_icon = pystray.Icon('Win_Simple', icon_image, 'Win_Simple 监控', menu)
+
+    def _create_tray_icon(self, icon_path: str) -> Image.Image:
+        """创建托盘图标"""
+        if icon_path and os.path.exists(icon_path):
+            try:
+                return Image.open(icon_path)
+            except:
+                pass
+
+        # 创建默认图标
+        size = 64
+        image = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(image)
+        draw.ellipse([4, 4, size-4, size-4], fill=(52, 152, 219, 255), outline=(41, 128, 185, 255))
+        return image
+
+    def _append_log(self, message: str, level: str = 'info'):
+        """添加日志到文本框（线程安全）"""
+        with self._log_lock:
+            try:
+                self.log_text.config(state='normal')
+                from datetime import datetime
+                time_str = datetime.now().strftime("%H:%M:%S")
+                self.log_text.insert('end', f"[{time_str}] {message}\n")
+
+                # 限制日志行数，防止内存溢出
+                line_count = int(self.log_text.index('end-1c').split('.')[0])
+                if line_count > self.MAX_LOG_LINES:
+                    self.log_text.delete('1.0', f'{line_count - self.MAX_LOG_LINES}.0')
+
+                self.log_text.see('end')
+                self.log_text.config(state='disabled')
+            except tk.TclError:
+                pass  # 窗口已关闭
+
+    def _save_config(self):
+        """保存配置"""
+        try:
+            self.config.server = self.config_vars['server'].get()
+            self.config.secret = self.config_vars['secret'].get()
+            self.config.device_id = self.config_vars['device_id'].get()
+            self.config.device_show_name = self.config_vars['device_show_name'].get()
+            self.config.check_interval = int(self.config_vars['check_interval'].get())
+            self.config.mouse_idle_time = int(self.config_vars['mouse_idle_time'].get())
+            self.config.mouse_move_threshold = int(self.config_vars['mouse_move_threshold'].get())
+            self.config.minimize_to_tray = self.minimize_var.get()
+
+            self.config.save()
+            self._append_log('配置已保存')
+            messagebox.showinfo('成功', '配置已保存')
+        except ValueError as e:
+            messagebox.showerror('错误', f'请输入有效的数值: {e}')
+        except Exception as e:
+            messagebox.showerror('错误', f'保存失败: {e}')
+
+    def _show_window(self, icon=None, item=None):
+        """显示窗口"""
+        try:
+            self.root.deiconify()
+            self.root.state('normal')
+            self.root.focus_force()
+        except:
+            pass
+
+    def _hide_window(self):
+        """隐藏窗口到托盘"""
+        try:
+            self.root.withdraw()
+        except:
+            pass
+
+    def _on_close(self):
+        """窗口关闭事件"""
+        self._hide_window()
+
+    def _exit_app(self, icon=None, item=None):
+        """退出应用"""
+        self._exit_flag.set()
+        if self.tray_icon:
+            self.tray_icon.stop()
+        try:
+            self.root.quit()
+        except:
+            pass
+
+    def run(self):
+        """运行应用"""
+        # 启动托盘图标
+        threading.Thread(target=self.tray_icon.run, daemon=True).start()
+
+        # 如果配置为最小化启动，则隐藏窗口
+        if self.config.minimize_to_tray:
+            self.root.after(100, self._hide_window)
+
+        self.root.mainloop()
+
+# --------------------------
+# 网络检测
+# --------------------------
 def check_network():
     """检测网络连接"""
     try:
@@ -303,177 +499,34 @@ def check_network():
         return False
 
 # --------------------------
-# 托盘图标管理
-# --------------------------
-# 全局退出标志
-_exit_flag = threading.Event()
-
-class TrayIconManager:
-    """系统托盘图标管理器"""
-    def __init__(self, icon_path: str = None, monitor=None):
-        self.icon_path = icon_path
-        self.monitor = monitor
-        self.icon = None
-        self._setup_icon()
-
-    def _load_icon(self) -> Image.Image:
-        """加载托盘图标"""
-        # 尝试加载图标文件
-        if self.icon_path and os.path.exists(self.icon_path):
-            try:
-                return Image.open(self.icon_path)
-            except Exception as e:
-                logging.warning(f'加载图标失败: {e}，使用默认图标')
-
-        # 创建默认图标（简单的圆形图标）
-        return self._create_default_icon()
-
-    def _create_default_icon(self) -> Image.Image:
-        """创建默认托盘图标"""
-        # 创建一个64x64的图标
-        size = 64
-        image = Image.new('RGBA', (size, size), (0, 0, 0, 0))
-
-        # 简单的实现：创建一个蓝色圆形图标
-        from PIL import ImageDraw
-        draw = ImageDraw.Draw(image)
-        draw.ellipse([4, 4, size-4, size-4], fill=(52, 152, 219, 255), outline=(41, 128, 185, 255))
-
-        return image
-
-    def _setup_icon(self):
-        """设置托盘图标"""
-        icon_image = self._load_icon()
-
-        # 创建菜单项
-        menu = pystray.Menu(
-            pystray.MenuItem(
-                lambda text: '隐藏日志' if is_console_visible() else '显示日志',
-                self._toggle_console_wrapper,
-                default=True  # 双击托盘图标触发
-            ),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem('退出', self._exit_app)
-        )
-
-        self.icon = pystray.Icon(
-            'Win_Simple',
-            icon_image,
-            'Win_Simple 监控',
-            menu
-        )
-
-    def _toggle_console_wrapper(self, icon, item):
-        """切换控制台窗口（菜单回调）"""
-        toggle_console()
-        # 更新菜单显示
-        icon.menu = pystray.Menu(
-            pystray.MenuItem(
-                lambda text: '隐藏日志' if is_console_visible() else '显示日志',
-                self._toggle_console_wrapper,
-                default=True
-            ),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem('退出', self._exit_app)
-        )
-
-    def _exit_app(self, icon, item):
-        """退出应用（干净的关闭方式）"""
-        logging.info("用户通过托盘退出")
-        # 发送离线状态
-        if self.monitor:
-            try:
-                self.monitor.send_state(False, "用户退出")
-            except Exception:
-                pass
-        # 设置退出标志
-        _exit_flag.set()
-        # 停止托盘图标
-        icon.stop()
-
-    def run(self):
-        """启动托盘图标"""
-        # 在单独线程中运行托盘
-        threading.Thread(target=self.icon.run, daemon=True).start()
-        logging.info('托盘图标已启动')
-
-def message_loop(monitor):
-    """(需异步执行) 窗口消息循环"""
-    def create_window():
-        wc = win32gui.WNDCLASS()
-        wc.lpfnWndProc = on_shutdown
-        wc.lpszClassName = "LoggingWindow"
-        wc.hInstance = win32api.GetModuleHandle(None)
-        class_atom = win32gui.RegisterClass(wc)
-        return win32gui.CreateWindow(class_atom, "状态监控", win32con.WS_OVERLAPPEDWINDOW,
-                                     100, 100, 600, 400, 0, 0, wc.hInstance, None)
-    
-    def on_shutdown(hwnd, msg, wparam, lparam):
-        """窗口事件处理"""
-        if msg == win32con.WM_QUERYENDSESSION or msg == win32con.WM_CLOSE:
-            logging.info("结束了喵...?")
-            try:
-                resp = monitor.send_state(False,"结束了喵")
-                logging.debug(f'Response: {resp.status_code} - {resp.json()}')
-                if resp.status_code != 200:
-                    logging.warning(f'阿巴阿巴，{resp.status_code} - {resp.json()}')
-            except Exception as e:
-                logging.warning(f'玛卡巴卡，{e}')
-            return True  # 允许关机或注销
-           
-        return 0
-    
-    hwnd = create_window()
-    # logging.info("启动")
-    win32gui.PumpMessages()
-
-# --------------------------
 # 主程序入口
 # --------------------------
 def main():
     config = AppConfig()
     state = DeviceState(config)
     monitor = DeviceMonitor(config, state)
-
-    # 根据配置决定是否隐藏控制台
-    if config.hide_console_on_start:
-        hide_console()
-        logging.info('控制台已隐藏，可通过托盘图标显示')
-
-    # 启动托盘图标
-    icon_path = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), 'zmal.ico')
-    tray = TrayIconManager(icon_path, monitor)
-    tray.run()
-
-    # 启动消息循环线程
-    threading.Thread(target=message_loop, args=(monitor,), daemon=True).start()
-
-    # 等待网络连接
-    while not check_network():
-        if _exit_flag.is_set():
-            logging.info("退出中...")
-            return
-        logging.warning('网络被主人冲坏了喵~，5秒后重试...')
-        sleep(5)
-
-    # 主监控循环
-    while not _exit_flag.is_set():
-        try:
-            monitor.update_state()
-            sleep(config.check_interval)
-        except KeyboardInterrupt:
-            monitor.send_state(False, "主人要抛弃人家了吗~呜")
-            logging.info("主人要抛弃人家了吗~呜")
-            break
-        except Exception as e:
-            logging.error(f'梦梦不知道哦: {e}')
-            monitor.send_state(False, [str(e)])
-            sleep(10)
-
-    # 清理退出
-    logging.info("程序正常退出")
-    sys.exit(0)
-
+    
+    app = AppGUI(config, monitor)
+    
+    # 启动监控线程
+    def monitor_loop():
+        while not check_network():
+            monitor.log('网络连接失败，5秒后重试...', 'warning')
+            sleep(5)
+        
+        monitor.log('网络连接成功，开始监控')
+        
+        while True:
+            try:
+                monitor.update_state()
+                sleep(config.check_interval)
+            except Exception as e:
+                monitor.log(f'监控错误: {e}', 'error')
+                sleep(10)
+    
+    threading.Thread(target=monitor_loop, daemon=True).start()
+    
+    app.run()
 
 if __name__ == '__main__':
     main()
