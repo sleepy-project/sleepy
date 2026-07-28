@@ -48,6 +48,8 @@ LOGLEVEL = INFO
 LOG_FILE = False
 # 黑名单配置（竖线分隔）
 BLACKLIST = ExampleApp|Privacy Information
+# 启动时隐藏控制台窗口
+HIDE_CONSOLE_ON_START = False
 """
     
     def __init__(self):
@@ -88,7 +90,10 @@ BLACKLIST = ExampleApp|Privacy Information
             # 日志配置
             self.log_level = self._get_log_level(fallback='INFO')
             self.log_file = self.config.getboolean('settings', 'LOG_FILE', fallback=True)
-            
+
+            # 控制台配置
+            self.hide_console_on_start = self.config.getboolean('settings', 'HIDE_CONSOLE_ON_START', fallback=False)
+
             # 黑名单配置
             self.blacklist = self._parse_list('BLACKLIST', fallback=['User1', 'User2'])
         
@@ -248,32 +253,34 @@ class DeviceMonitor:
 # --------------------------
 
 # 控制台窗口控制
-_console_visible = True
-
 def get_console_window():
     """获取控制台窗口句柄"""
     return ctypes.windll.kernel32.GetConsoleWindow()
 
+def is_console_visible() -> bool:
+    """检查控制台窗口是否可见（线程安全）"""
+    hwnd = get_console_window()
+    if not hwnd:
+        return False
+    # 使用 IsWindowVisible API 检查窗口可见性
+    return ctypes.windll.user32.IsWindowVisible(hwnd) != 0
+
 def hide_console():
     """隐藏控制台窗口"""
-    global _console_visible
     hwnd = get_console_window()
     if hwnd:
         win32gui.ShowWindow(hwnd, win32con.SW_HIDE)
-        _console_visible = False
 
 def show_console():
     """显示控制台窗口"""
-    global _console_visible
     hwnd = get_console_window()
     if hwnd:
         win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
         win32gui.SetForegroundWindow(hwnd)
-        _console_visible = True
 
 def toggle_console():
     """切换控制台窗口显示状态"""
-    if _console_visible:
+    if is_console_visible():
         hide_console()
     else:
         show_console()
@@ -289,10 +296,14 @@ def check_network():
 # --------------------------
 # 托盘图标管理
 # --------------------------
+# 全局退出标志
+_exit_flag = threading.Event()
+
 class TrayIconManager:
     """系统托盘图标管理器"""
-    def __init__(self, icon_path: str = None):
+    def __init__(self, icon_path: str = None, monitor=None):
         self.icon_path = icon_path
+        self.monitor = monitor
         self.icon = None
         self._setup_icon()
 
@@ -328,7 +339,7 @@ class TrayIconManager:
         # 创建菜单项
         menu = pystray.Menu(
             pystray.MenuItem(
-                lambda text: '隐藏日志' if _console_visible else '显示日志',
+                lambda text: '隐藏日志' if is_console_visible() else '显示日志',
                 self._toggle_console_wrapper,
                 default=True  # 双击托盘图标触发
             ),
@@ -343,13 +354,13 @@ class TrayIconManager:
             menu
         )
 
-    def _toggle_console_wrapper(self):
+    def _toggle_console_wrapper(self, icon, item):
         """切换控制台窗口（菜单回调）"""
         toggle_console()
         # 更新菜单显示
-        self.icon.menu = pystray.Menu(
+        icon.menu = pystray.Menu(
             pystray.MenuItem(
-                lambda text: '隐藏日志' if _console_visible else '显示日志',
+                lambda text: '隐藏日志' if is_console_visible() else '显示日志',
                 self._toggle_console_wrapper,
                 default=True
             ),
@@ -357,11 +368,19 @@ class TrayIconManager:
             pystray.MenuItem('退出', self._exit_app)
         )
 
-    def _exit_app(self):
-        """退出应用"""
+    def _exit_app(self, icon, item):
+        """退出应用（干净的关闭方式）"""
         logging.info("用户通过托盘退出")
-        self.icon.stop()
-        os._exit(0)
+        # 发送离线状态
+        if self.monitor:
+            try:
+                self.monitor.send_state(False, "用户退出")
+            except Exception:
+                pass
+        # 设置退出标志
+        _exit_flag.set()
+        # 停止托盘图标
+        icon.stop()
 
     def run(self):
         """启动托盘图标"""
@@ -407,9 +426,14 @@ def main():
     state = DeviceState(config)
     monitor = DeviceMonitor(config, state)
 
+    # 根据配置决定是否隐藏控制台
+    if config.hide_console_on_start:
+        hide_console()
+        logging.info('控制台已隐藏，可通过托盘图标显示')
+
     # 启动托盘图标
     icon_path = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), 'zmal.ico')
-    tray = TrayIconManager(icon_path)
+    tray = TrayIconManager(icon_path, monitor)
     tray.run()
 
     # 启动消息循环线程
@@ -417,22 +441,29 @@ def main():
 
     # 等待网络连接
     while not check_network():
+        if _exit_flag.is_set():
+            logging.info("退出中...")
+            return
         logging.warning('网络被主人冲坏了喵~，5秒后重试...')
         sleep(5)
 
     # 主监控循环
-    while True:
+    while not _exit_flag.is_set():
         try:
             monitor.update_state()
             sleep(config.check_interval)
         except KeyboardInterrupt:
             monitor.send_state(False, "主人要抛弃人家了吗~呜")
             logging.info("主人要抛弃人家了吗~呜")
-            sys.exit(0)
+            break
         except Exception as e:
             logging.error(f'梦梦不知道哦: {e}')
             monitor.send_state(False, [str(e)])
             sleep(10)
+
+    # 清理退出
+    logging.info("程序正常退出")
+    sys.exit(0)
 
 
 if __name__ == '__main__':
