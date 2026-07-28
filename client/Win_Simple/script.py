@@ -5,11 +5,14 @@ import configparser
 import requests
 import logging
 import threading
+import ctypes
 import win32gui,win32con,win32api # type: ignore
 from time import time, sleep
+import pystray
+from PIL import Image
 
 #cd client/Win_Simple
-#pyinstaller -F -n Win_Simple.exe --icon=zmal.ico --hidden-import=win32gui --hidden-import=win32con --hidden-import=win32api --hidden-import=requests script.py
+#pyinstaller -F -n Win_Simple.exe --icon=zmal.ico --hidden-import=win32gui --hidden-import=win32con --hidden-import=win32api --hidden-import=requests --hidden-import=pystray --hidden-import=PIL.Image --hidden-import=PIL.ImageDraw script.py
 
 # --------------------------
 # 配置管理类
@@ -243,6 +246,38 @@ class DeviceMonitor:
 # --------------------------
 # 系统功能模块
 # --------------------------
+
+# 控制台窗口控制
+_console_visible = True
+
+def get_console_window():
+    """获取控制台窗口句柄"""
+    return ctypes.windll.kernel32.GetConsoleWindow()
+
+def hide_console():
+    """隐藏控制台窗口"""
+    global _console_visible
+    hwnd = get_console_window()
+    if hwnd:
+        win32gui.ShowWindow(hwnd, win32con.SW_HIDE)
+        _console_visible = False
+
+def show_console():
+    """显示控制台窗口"""
+    global _console_visible
+    hwnd = get_console_window()
+    if hwnd:
+        win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
+        win32gui.SetForegroundWindow(hwnd)
+        _console_visible = True
+
+def toggle_console():
+    """切换控制台窗口显示状态"""
+    if _console_visible:
+        hide_console()
+    else:
+        show_console()
+
 def check_network():
     """检测网络连接"""
     try:
@@ -250,6 +285,89 @@ def check_network():
         return response.status_code == 200
     except requests.RequestException:
         return False
+
+# --------------------------
+# 托盘图标管理
+# --------------------------
+class TrayIconManager:
+    """系统托盘图标管理器"""
+    def __init__(self, icon_path: str = None):
+        self.icon_path = icon_path
+        self.icon = None
+        self._setup_icon()
+
+    def _load_icon(self) -> Image.Image:
+        """加载托盘图标"""
+        # 尝试加载图标文件
+        if self.icon_path and os.path.exists(self.icon_path):
+            try:
+                return Image.open(self.icon_path)
+            except Exception as e:
+                logging.warning(f'加载图标失败: {e}，使用默认图标')
+
+        # 创建默认图标（简单的圆形图标）
+        return self._create_default_icon()
+
+    def _create_default_icon(self) -> Image.Image:
+        """创建默认托盘图标"""
+        # 创建一个64x64的图标
+        size = 64
+        image = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+
+        # 简单的实现：创建一个蓝色圆形图标
+        from PIL import ImageDraw
+        draw = ImageDraw.Draw(image)
+        draw.ellipse([4, 4, size-4, size-4], fill=(52, 152, 219, 255), outline=(41, 128, 185, 255))
+
+        return image
+
+    def _setup_icon(self):
+        """设置托盘图标"""
+        icon_image = self._load_icon()
+
+        # 创建菜单项
+        menu = pystray.Menu(
+            pystray.MenuItem(
+                lambda text: '隐藏日志' if _console_visible else '显示日志',
+                self._toggle_console_wrapper,
+                default=True  # 双击托盘图标触发
+            ),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem('退出', self._exit_app)
+        )
+
+        self.icon = pystray.Icon(
+            'Win_Simple',
+            icon_image,
+            'Win_Simple 监控',
+            menu
+        )
+
+    def _toggle_console_wrapper(self):
+        """切换控制台窗口（菜单回调）"""
+        toggle_console()
+        # 更新菜单显示
+        self.icon.menu = pystray.Menu(
+            pystray.MenuItem(
+                lambda text: '隐藏日志' if _console_visible else '显示日志',
+                self._toggle_console_wrapper,
+                default=True
+            ),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem('退出', self._exit_app)
+        )
+
+    def _exit_app(self):
+        """退出应用"""
+        logging.info("用户通过托盘退出")
+        self.icon.stop()
+        os._exit(0)
+
+    def run(self):
+        """启动托盘图标"""
+        # 在单独线程中运行托盘
+        threading.Thread(target=self.icon.run, daemon=True).start()
+        logging.info('托盘图标已启动')
 
 def message_loop(monitor):
     """(需异步执行) 窗口消息循环"""
@@ -288,15 +406,20 @@ def main():
     config = AppConfig()
     state = DeviceState(config)
     monitor = DeviceMonitor(config, state)
-    
+
+    # 启动托盘图标
+    icon_path = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), 'zmal.ico')
+    tray = TrayIconManager(icon_path)
+    tray.run()
+
     # 启动消息循环线程
     threading.Thread(target=message_loop, args=(monitor,), daemon=True).start()
-    
+
     # 等待网络连接
     while not check_network():
         logging.warning('网络被主人冲坏了喵~，5秒后重试...')
         sleep(5)
-    
+
     # 主监控循环
     while True:
         try:
