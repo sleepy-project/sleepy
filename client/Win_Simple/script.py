@@ -265,6 +265,14 @@ def is_console_visible() -> bool:
     # 使用 IsWindowVisible API 检查窗口可见性
     return ctypes.windll.user32.IsWindowVisible(hwnd) != 0
 
+def is_console_minimized() -> bool:
+    """检查控制台窗口是否最小化"""
+    hwnd = get_console_window()
+    if not hwnd:
+        return False
+    # 使用 IsIconic API 检查窗口是否最小化
+    return ctypes.windll.user32.IsIconic(hwnd) != 0
+
 def hide_console():
     """隐藏控制台窗口"""
     hwnd = get_console_window()
@@ -280,7 +288,8 @@ def show_console():
 
 def toggle_console():
     """切换控制台窗口显示状态"""
-    if is_console_visible():
+    # 如果窗口可见且不是最小化状态，则隐藏
+    if is_console_visible() and not is_console_minimized():
         hide_console()
     else:
         show_console()
