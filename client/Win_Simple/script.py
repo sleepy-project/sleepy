@@ -210,12 +210,15 @@ class DeviceMonitor:
         """输出日志"""
         if self.log_callback:
             self.log_callback(message, level)
-        if level == 'error':
-            logging.error(message)
-        elif level == 'warning':
-            logging.warning(message)
-        else:
-            logging.info(message)
+        # 根据级别调用对应的日志方法
+        level_map = {
+            'debug': logging.debug,
+            'info': logging.info,
+            'warning': logging.warning,
+            'error': logging.error
+        }
+        log_func = level_map.get(level, logging.info)
+        log_func(message)
     
     def send_state(self, using: bool, window: str = None):
         """发送状态到服务器"""
@@ -414,7 +417,12 @@ class AppGUI:
         return image
 
     def _append_log(self, message: str, level: str = 'info'):
-        """添加日志到文本框（线程安全）"""
+        """添加日志到文本框（线程安全，通过主线程更新UI）"""
+        # 使用 root.after 调度到主线程
+        self.root.after(0, lambda: self._do_append_log(message, level))
+
+    def _do_append_log(self, message: str, level: str = 'info'):
+        """在主线程中实际执行日志添加"""
         with self._log_lock:
             try:
                 self.log_text.config(state='normal')
@@ -518,27 +526,30 @@ def main():
     config = AppConfig()
     state = DeviceState(config)
     monitor = DeviceMonitor(config, state)
-    
+
     app = AppGUI(config, monitor)
-    
-    # 启动监控线程
-    def monitor_loop():
-        while not check_network():
+
+    # 启动监控线程，传入退出标志
+    def monitor_loop(exit_flag: threading.Event):
+        while not check_network() and not exit_flag.is_set():
             monitor.log('网络连接失败，5秒后重试...', 'warning')
             sleep(5)
-        
+
+        if exit_flag.is_set():
+            return  # 退出信号，直接返回
+
         monitor.log('网络连接成功，开始监控')
-        
-        while True:
+
+        while not exit_flag.is_set():
             try:
                 monitor.update_state()
                 sleep(config.check_interval)
             except Exception as e:
                 monitor.log(f'监控错误: {e}', 'error')
                 sleep(10)
-    
-    threading.Thread(target=monitor_loop, daemon=True).start()
-    
+
+    threading.Thread(target=monitor_loop, args=(app._exit_flag,), daemon=True).start()
+
     app.run()
 
 if __name__ == '__main__':
