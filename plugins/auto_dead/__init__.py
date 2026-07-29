@@ -34,28 +34,83 @@ data = plugin.global_data
 def check_and_update_status():
     '''
     检查最后更新时间,如果超时则自动设置状态为"似了"
+    - 获取所有设备的最后更新时间,取最新的一个
+    - 检查设备状态,如果设备"未在使用"且超时也触发状态更新
     '''
     try:
-        # 获取最后更新时间戳
-        last_updated = data.last_updated
         current_time = time()
-
-        # 计算时间差(秒)
-        time_diff = current_time - last_updated
         timeout_seconds = config.timeout_minutes * 60
 
-        # 如果超时
-        if time_diff > timeout_seconds:
-            current_status = data.status_id
+        # 获取所有设备
+        devices = data._raw_device_list
 
-            # 只有当前状态不是"似了"状态时才更新
+        if not devices:
+            # 没有设备,使用主数据的 last_updated
+            last_updated = data.last_updated
+            time_diff = current_time - last_updated
+
+            if time_diff > timeout_seconds:
+                current_status = data.status_id
+                if current_status != config.dead_status_id:
+                    old_status_name = data.status[1].name if data.status[0] else "Unknown"
+                    data.status_id = config.dead_status_id
+                    new_status = data.status[1]
+                    l.info(
+                        f'[auto_dead] 无设备,主数据超时 {time_diff:.0f}秒 ({time_diff/60:.1f}分钟), '
+                        f'状态已从 "{old_status_name}" 自动更新为 "{new_status.name}"'
+                    )
+            return
+
+        # 找出最新更新的设备
+        latest_device = None
+        latest_time = 0
+        not_using_devices = []
+
+        for device_id, device in devices.items():
+            device_time = device.last_updated
+
+            # 记录最新更新的设备
+            if device_time > latest_time:
+                latest_time = device_time
+                latest_device = device_id
+
+            # 记录"未在使用"的设备
+            if device.using == False:
+                not_using_devices.append({
+                    'id': device_id,
+                    'name': device.show_name,
+                    'last_updated': device_time
+                })
+
+        # 计算最新设备的时间差
+        time_diff = current_time - latest_time
+
+        # 检查是否超时
+        should_update = False
+        reason = ""
+
+        if time_diff > timeout_seconds:
+            # 最新设备超时
+            should_update = True
+            reason = f"最新设备 {latest_device} 超时 {time_diff:.0f}秒 ({time_diff/60:.1f}分钟)"
+        else:
+            # 检查"未在使用"的设备是否超时
+            for device_info in not_using_devices:
+                device_time_diff = current_time - device_info['last_updated']
+                if device_time_diff > timeout_seconds:
+                    should_update = True
+                    reason = f"未在使用设备 {device_info['name']} 超时 {device_time_diff:.0f}秒 ({device_time_diff/60:.1f}分钟)"
+                    break
+
+        # 执行状态更新
+        if should_update:
+            current_status = data.status_id
             if current_status != config.dead_status_id:
                 old_status_name = data.status[1].name if data.status[0] else "Unknown"
                 data.status_id = config.dead_status_id
                 new_status = data.status[1]
-
                 l.info(
-                    f'[auto_dead] 检测到超时 {time_diff:.0f}秒 ({time_diff/60:.1f}分钟), '
+                    f'[auto_dead] {reason}, '
                     f'状态已从 "{old_status_name}" 自动更新为 "{new_status.name}"'
                 )
         else:
@@ -63,7 +118,8 @@ def check_and_update_status():
             remaining_minutes = (timeout_seconds - time_diff) / 60
             l.debug(
                 f'[auto_dead] 距离超时还有 {remaining_minutes:.1f} 分钟 '
-                f'(已过 {time_diff/60:.1f} 分钟 / {config.timeout_minutes} 分钟)'
+                f'(最新设备: {latest_device}, 已过 {time_diff/60:.1f} 分钟 / {config.timeout_minutes} 分钟, '
+                f'设备总数: {len(devices)}, 未在使用: {len(not_using_devices)})'
             )
 
     except Exception as e:
