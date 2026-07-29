@@ -228,19 +228,17 @@ python win_device_ds.py
 python win_settings.py
 ```
 
-## [Win_Simple](./Win_Simple/dist/Win_Simple.exe)
+## [Win_Simple](https://github.com/yangyan-ot/sleepy/releases/)
 
 > by: [@kmizmal](https://github.com/kmizmal) <br/>
+> Co-authored-by: [@yangyan-ot](hhttps://github.com/yangyan-ot) - 增加 WinUI 界面和托盘支持 <br/>
 > 源代码: [`./Win_Simple/script.py`](./Win_Simple/script.py)
 
 ### 配置
 
-配置文件 (首次打开自动在同级目录下创建): `config.ini`
-> `config.ini` 里面的注释写的很详细了，不再提供示例
+*配置文件 (首次打开自动在同级目录下创建): `config.ini`*
 
-### 使用
-
-下载后双击 `Win_Simple.exe` 初始化配置文件，然后在同级目录下的 `config.ini` 中填写配置，重新打开即可
+已有 WinUI 界面，直接在界面中设置即可
 
 > [!TIP]
 > 如何开机自启? <br/>
