@@ -2,3 +2,4 @@
 build/
 *.spec
 dist/config.ini
+dist/*.exe

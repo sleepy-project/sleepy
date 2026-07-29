@@ -14,7 +14,13 @@ import pystray
 from PIL import Image, ImageDraw
 
 #cd client/Win_Simple
-#pyinstaller -F -n Win_Simple.exe --icon=zmal.ico --hidden-import=win32gui --hidden-import=win32con --hidden-import=win32api --hidden-import=requests --hidden-import=pystray --hidden-import=PIL.Image --hidden-import=PIL.ImageDraw --hidden-import=tkinter script.py
+#pyinstaller -F -w -n Win_Simple.exe --icon=zmal.ico ^
+#  --hidden-import=win32gui --hidden-import=win32con --hidden-import=win32api ^
+#  --hidden-import=requests --hidden-import=pystray --hidden-import=PIL.Image ^
+#  --hidden-import=tkinter ^
+#  --exclude-module=numpy --exclude-module=psutil --exclude-module=matplotlib ^
+#  --exclude-module=pandas --exclude-module=IPython --exclude-module=jupyter ^
+#  script.py --clean
 
 # --------------------------
 # 配置管理类
@@ -468,6 +474,13 @@ class AppGUI:
 
     def _exit_app(self, icon=None, item=None):
         """退出应用"""
+        # 退出前发送离线状态
+        try:
+            self.monitor.send_state(False, "已离线")
+            self.monitor.log("程序已退出，发送离线状态")
+        except:
+            pass
+
         self._exit_flag.set()
         if self.tray_icon:
             self.tray_icon.stop()
