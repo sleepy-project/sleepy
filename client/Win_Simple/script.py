@@ -106,6 +106,7 @@ MINIMIZE_TO_TRAY = False
         
         except Exception as e:
             logging.error(f'配置文件打不开惹: {e}')
+            sys.exit(1)
     
     def _parse_list(self, key: str, fallback="") -> list:
         """解析竖线分隔的配置项"""
@@ -480,15 +481,21 @@ class AppGUI:
         """窗口关闭事件"""
         self._hide_window()
 
-    def _exit_app(self, icon=None, item=None):
-        """退出应用"""
-        # 退出前发送离线状态
+    def should_exit(self) -> bool:
+        """检查是否应退出（供外部轮询）"""
+        return self._exit_flag.is_set()
+
+    def _send_offline(self):
+        """发送离线状态"""
         try:
             self.monitor.send_state(False, "已离线")
             self.monitor.log("程序已退出，发送离线状态")
         except:
             pass
 
+    def _exit_app(self, icon=None, item=None):
+        """退出应用"""
+        self._send_offline()
         self._exit_flag.set()
         if self.tray_icon:
             self.tray_icon.stop()
@@ -497,8 +504,43 @@ class AppGUI:
         except:
             pass
 
+    def _on_os_shutdown(self, event):
+        """处理操作系统关机/注销事件"""
+        if event in (win32con.WM_QUERYENDSESSION, win32con.WM_CLOSE):
+            self._send_offline()
+            self._exit_flag.set()
+        return True
+
+    def start_monitor(self):
+        """启动监控线程（由主程序调用）"""
+        def _monitor_loop():
+            while not check_network() and not self._exit_flag.is_set():
+                self.monitor.log('网络连接失败，5秒后重试...', 'warning')
+                sleep(5)
+
+            if self._exit_flag.is_set():
+                return
+
+            self.monitor.log('网络连接成功，开始监控')
+
+            while not self._exit_flag.is_set():
+                try:
+                    self.monitor.update_state()
+                    sleep(self.config.check_interval)
+                except Exception as e:
+                    self.monitor.log(f'监控错误: {e}', 'error')
+                    sleep(10)
+
+        threading.Thread(target=_monitor_loop, daemon=True).start()
+
     def run(self):
         """运行应用"""
+        # 注册 OS 关机/注销回调
+        try:
+            win32api.SetConsoleCtrlHandler(self._on_os_shutdown, True)
+        except Exception:
+            pass
+
         # 启动托盘图标
         threading.Thread(target=self.tray_icon.run, daemon=True).start()
 
@@ -506,6 +548,7 @@ class AppGUI:
         if self.config.minimize_to_tray:
             self.root.after(100, self._hide_window)
 
+        self.start_monitor()
         self.root.mainloop()
 
 # --------------------------
@@ -528,28 +571,6 @@ def main():
     monitor = DeviceMonitor(config, state)
 
     app = AppGUI(config, monitor)
-
-    # 启动监控线程，传入退出标志
-    def monitor_loop(exit_flag: threading.Event):
-        while not check_network() and not exit_flag.is_set():
-            monitor.log('网络连接失败，5秒后重试...', 'warning')
-            sleep(5)
-
-        if exit_flag.is_set():
-            return  # 退出信号，直接返回
-
-        monitor.log('网络连接成功，开始监控')
-
-        while not exit_flag.is_set():
-            try:
-                monitor.update_state()
-                sleep(config.check_interval)
-            except Exception as e:
-                monitor.log(f'监控错误: {e}', 'error')
-                sleep(10)
-
-    threading.Thread(target=monitor_loop, args=(app._exit_flag,), daemon=True).start()
-
     app.run()
 
 if __name__ == '__main__':
