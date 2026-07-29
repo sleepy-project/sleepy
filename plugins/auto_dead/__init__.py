@@ -59,6 +59,13 @@ def check_and_update_status():
                         f'[auto_dead] 无设备,主数据超时 {time_diff:.0f}秒 ({time_diff/60:.1f}分钟), '
                         f'状态已从 "{old_status_name}" 自动更新为 "{new_status.name}"'
                     )
+            else:
+                # 未超时,记录信息
+                remaining_minutes = (timeout_seconds - time_diff) / 60
+                l.info(
+                    f'[auto_dead] 无设备模式 - 距离超时还有 {remaining_minutes:.1f} 分钟 '
+                    f'(已过 {time_diff/60:.1f} 分钟 / {config.timeout_minutes} 分钟)'
+                )
             return
 
         # 找出最新更新的设备
@@ -143,6 +150,24 @@ def background_checker():
         sleep(config.check_interval)
 
 
+@plugin.event_handler(pl.DeviceSetEvent)
+def on_device_set(event: pl.DeviceSetEvent, request):
+    '''
+    当有设备更新时,如果当前状态是"似了",自动复活为"活着"
+    '''
+    current_status = data.status_id
+    if current_status == config.dead_status_id:
+        alive_status = data.get_status(0)
+        alive_name = alive_status[1].name if alive_status[0] else "活着"
+        dead_name = data.status[1].name if data.status[0] else "似了"
+        data.status_id = 0
+        l.info(
+            f'[auto_dead] 检测到设备 {event.device_id} 更新, '
+            f'状态已从 "{dead_name}" 自动恢复为 "{alive_name}"'
+        )
+    return event
+
+
 def init():
     '''插件初始化'''
     # 启动后台检查线程(daemon=True,主线程退出时自动结束)
@@ -150,6 +175,7 @@ def init():
     checker_thread.start()
 
     l.info(f'[auto_dead] 插件已加载 - 超时 {config.timeout_minutes} 分钟后将自动设置状态为 ID={config.dead_status_id}')
+    l.info('[auto_dead] 设备更新时将自动恢复状态为"活着"')
 
 
 # 覆盖默认的 init 方法
