@@ -213,11 +213,12 @@ python win_device_ds.py
 
 ## Win Fast Settings
 
-> by: [@CR400AFC2214](https://github.com/tianyuzpr)
+> by: [@Xiayue](https://github.com/tianyuzpr)
 
 这是一个基于 win_device.py 的快速调整 sleepy 设置的小脚本，基于 tkinter
 
 > [!WARNING]
+> 警告：距离本脚本上次维护已有大约一年时间，遂本人**不确定**能否用于最新版Sleepy-Project！
 > 本 client 基于 **[WinDevice](#windevice), 请确保您在使用前将 win_device.py 放在同一文件夹下, 并已经完成了在 win_device.py 中的配置!**
 
 额外的依赖: `requests`
