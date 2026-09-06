@@ -1,0 +1,10 @@
+[project]
+name = "device"
+version = "1.0.0"
+description = "设备状态上报与查询"
+authors = [{ name = "sleepy-project contributors" }]
+dependencies = []
+
+[tool.sleepy]
+enabled = true
+dependencies = []
