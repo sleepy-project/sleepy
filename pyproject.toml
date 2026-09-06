@@ -1,24 +1,32 @@
 [project]
 name = "sleepy"
-version = "6.0.0"
+version = "7.0.0"
 description = "A FastAPI application to see if you're online or not."
-license = { text = "MIT" }
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "argparse>=1.4.0",
     "bcrypt>=5.0.0",
-    "dotenv>=0.9.9",
     "fastapi[standard]>=0.116.1",
     "loguru>=0.7.3",
+    "packaging>=24.0",
     "pydantic>=2.11.7",
     "pyproject-parser>=0.14.0",
+    "python-dotenv>=1.0.1",
     "python-multipart>=0.0.20",
     "pyyaml>=6.0.2",
     "sqlmodel>=0.0.24",
     "sse-starlette>=3.0.2",
     "toml>=0.10.2",
     "websockets>=15.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "httpx>=0.28.0",
 ]
 
 [project.urls]
@@ -29,5 +37,21 @@ releasenotes = "https://github.com/sleepy-project/sleepy/releases"
 issues = "https://github.com/sleepy-project/sleepy/issues"
 
 [tool.sleepy]
-version = [6, 0, 0]
-version-str = "6.0-dev-20251218"
+version = [7, 0, 0]
+version-str = "7.0-dev"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 160
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+# E402/E501: 沿用 v5/v6 的既有风格
+# 刻意不开 BLE001 —— 插件系统必须用宽泛的 except 隔离插件异常,
+# 一个插件出错不能拖垮整个应用。
+# E741: `l` 作为 logger 名是本代码库自 v5 起的既定约定
+ignore = ["E402", "E501", "E741"]

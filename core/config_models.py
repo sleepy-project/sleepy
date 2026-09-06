@@ -15,8 +15,9 @@
 
 # coding: utf-8
 
-from pydantic import BaseModel, PositiveInt
 import typing as t
+
+from pydantic import BaseModel, PositiveInt
 
 # region user-config
 
@@ -29,11 +30,6 @@ class _LoggingConfigModel(BaseModel):
     level: t.Literal['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'] = 'INFO'
     '''
     日志等级
-    - DEBUG
-    - INFO
-    - WARNING
-    - ERROR
-    - CRITICAL
     '''
 
     file: str | None = 'logs/{time:YYYY-MM-DD}.log'
@@ -45,11 +41,6 @@ class _LoggingConfigModel(BaseModel):
     file_level: t.Literal['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'] | None = 'INFO'
     '''
     单独设置日志文件中的日志等级, 如设置为 None 则使用 level 设置
-    - DEBUG
-    - INFO
-    - WARNING
-    - ERROR
-    - CRITICAL
     '''
 
     rotation: str | int = '1 days'
@@ -63,19 +54,52 @@ class _LoggingConfigModel(BaseModel):
     '''
 
 
+class _PluginsConfigModel(BaseModel):
+    '''
+    插件系统配置 Model
+
+    注意与 `ConfigModel.plugin` 区分:
+    - `plugins` (本 Model) 控制插件系统本身的行为
+    - `plugin` 是各插件自己的配置项命名空间
+    '''
+
+    disabled: list[str] = []
+    '''
+    禁用的插件列表 (按目录名)
+
+    内置插件随仓库分发, 因此需要一个显式关掉它们的开关。
+    例如不需要 v5 兼容层时: `disabled: ['compat-v5']`
+    '''
+
+    builtin_dir: str = 'builtin'
+    '''
+    内置插件目录 (随仓库分发, git 跟踪)
+    '''
+
+    external_dir: str = 'plugins'
+    '''
+    外部插件目录 (用户自行安装, 不受 git 跟踪)
+
+    同名时外部插件覆盖内置插件, 以便用户替换内置实现。
+    '''
+
+
 class ConfigModel(BaseModel):
     '''
     配置 Model
+
+    core 只保留「机制」相关的配置项。
+    业务配置 (状态列表、设备过期时间等) 由对应插件通过 `register_config()` 自行声明。
     '''
 
     host: str = '0.0.0.0'
     '''
-    服务监听地址 (仅在直接启动 main.py 时有效)
+    服务监听地址
     '''
 
     port: PositiveInt = 9010
     '''
-    服务监听端口 (仅在直接启动 main.py 时有效)
+    服务监听端口
     '''
 
     dev: bool = False
@@ -83,14 +107,25 @@ class ConfigModel(BaseModel):
     启用 dev Token 登录 (仅用于开发环境)
     '''
 
-    # workers: PositiveInt = 2
-    # '''
-    # 服务 Worker 数 (仅在直接启动 main.py 时有效)
-    # '''
+    cors_origins: list[str] = ['*']
+    '''
+    允许跨域的来源列表
+
+    浏览器端客户端 (如 `client/browser-script.user.js`) 从任意页面发起上报请求, 没有 CORS 就会被浏览器拦截。
+    v6 遗漏了这一项, 这里补回。
+    '''
 
     log: _LoggingConfigModel = _LoggingConfigModel()
+    '''
+    日志配置
+    '''
 
-    database: str = 'sqlite:///data.db'
+    plugins: _PluginsConfigModel = _PluginsConfigModel()
+    '''
+    插件系统配置
+    '''
+
+    database: str = 'sqlite:///data/sleepy.db'
     '''
     数据库 url
     - SQLite: `sqlite:///文件名.db`
@@ -105,12 +140,12 @@ class ConfigModel(BaseModel):
 
     ws_refresh_interval: PositiveInt = 5
     '''
-    /api/ws 推送刷新间隔 (秒)
+    WebSocket 推送刷新间隔 (秒)
     '''
 
     auth_access_token_expires_minutes: PositiveInt = 60
     '''
-    Auth Token (管理登录) 过期时间 (分钟)
+    Access Token (管理登录) 过期时间 (分钟)
     '''
 
     auth_refresh_token_expires_days: PositiveInt = 30
@@ -118,25 +153,34 @@ class ConfigModel(BaseModel):
     Refresh Token (管理登录) 过期时间 (天)
     '''
 
+    token_last_active_throttle_seconds: PositiveInt = 60
+    '''
+    Token `last_active` 字段的写入节流间隔 (秒)
+
+    v6 每次鉴权都会 update + commit 一次, 在每 30 秒上报一次的设备上造成明显写放大。
+    间隔内的重复访问不再落库。
+    '''
+
     plugin: t.Dict[str, t.Any] = {}
     '''
-    插件配置
-    各插件的配置项，在配置文件的 `plugin.<plugin_name>` 下设置
-    - TOML: `[plugin.my-plugin]`
-    - YAML: `plugin.my-plugin.key: value`
-    - JSON: `{"plugin": {"my-plugin": {"key": "value"}}}`
-    - Env:  `SLEEPY_PLUGIN_MY_PLUGIN_KEY=value`
+    插件配置命名空间
+
+    各插件的配置项在 `plugin.<插件目录名>` 下设置:
+    - TOML: `[plugin.main-status]`
+    - YAML: `plugin.main-status.key: value`
+    - JSON: `{"plugin": {"main-status": {"key": "value"}}}`
+    - Env:  `SLEEPY_PLUGIN_MAIN_STATUS_KEY=value`
     '''
 
 
 # endregion user-config
+
 env_vaildate_json_keys = [
-    'status_status_list',
-    'metrics_allow_list',
-    'plugins_enabled',
+    'cors_origins',
+    'plugins_disabled',
     'plugin'
 ]
 '''
 此列表中的键将会尝试解析为 json
-(不包含 `sleepy_`)
+(不包含 `sleepy_` 前缀)
 '''

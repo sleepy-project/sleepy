@@ -1,5 +1,6 @@
 # Python Cache
 __pycache__/
+*.py[cod]
 
 # Config
 config.yaml
@@ -12,6 +13,9 @@ logs/
 *.log
 *.log.*
 *.db
+*.db-wal
+*.db-shm
+data/
 
 # For Local / venv
 *.test.*
@@ -19,8 +23,16 @@ logs/
 .venv/
 .venv_legacy/
 
-# Others
-.vscode/launch.json
+# Test / Tooling
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
-# Plugins
+# IDE
+.vscode/launch.json
+.idea/
+
+# 用户自行安装的插件
+# 内置插件在 builtin/ 下, 随仓库分发, 不受此规则影响
 plugins/

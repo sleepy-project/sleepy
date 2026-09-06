@@ -15,6 +15,9 @@
 
 # coding: utf-8
 
+import typing as t
+
+
 class APIUnsuccessful(Exception):
     '''
     api 接口调用失败异常
@@ -64,10 +67,10 @@ class APIUnsuccessful(Exception):
         511: 'Network Authentication Required',
     }
     '''
-    http code 对应表, 由 DeepSeek 扩充
+    http code 对应表
     '''
 
-    def __init__(self, code: int = 500, detail: str | None = None, headers: dict[str, str] = {}):
+    def __init__(self, code: int = 500, detail: str | None = None, headers: dict[str, str] | None = None):
         '''
         创建 APIUnsuccessful 异常
 
@@ -90,7 +93,46 @@ class APIUnsuccessful(Exception):
         self.code = code
         self.message = self.codes.get(code, f'HTTP Error {code}')
         self.detail = detail
-        self.headers = headers
+        # 不使用可变默认值 (v6 的 `headers: dict = {}` 是共享实例)
+        self.headers: dict[str, str] = headers if headers is not None else {}
 
     def __str__(self):
         return f'{self.code} {self.message} ({self.detail})'
+
+
+class PluginError(Exception):
+    '''
+    插件系统异常基类
+    '''
+
+    def __init__(self, plugin: str, detail: str):
+        self.plugin = plugin
+        self.detail = detail
+
+    def __str__(self):
+        return f'[{self.plugin}] {self.detail}'
+
+
+class PluginLoadError(PluginError):
+    '''
+    插件加载失败
+    '''
+
+
+class PluginDependencyError(PluginError):
+    '''
+    插件依赖缺失或版本不匹配
+    '''
+
+
+class ConfigError(Exception):
+    '''
+    配置解析/校验失败
+    '''
+
+    def __init__(self, source: str, detail: t.Any):
+        self.source = source
+        self.detail = detail
+
+    def __str__(self):
+        return f'配置 {self.source} 无效: {self.detail}'
