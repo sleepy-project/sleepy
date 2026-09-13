@@ -1,4 +1,4 @@
-# Copyright (C) 2026 sleepy-project contributors
+# Copyright (C) 2026 sleepy-project
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,8 +25,13 @@ import json
 from core.events import BaseEvent, EventBus
 
 
-def test_root_and_health(client):
-    body = client.get('/').json()
+def test_meta_and_health(client):
+    '''
+    元信息走 /api/v1/meta 而不是 /
+
+    `/` 会被前端插件接管 (首页要给人看), 程序化访问需要一条不会被接管的路径。
+    '''
+    body = client.get('/api/v1/meta').json()
     assert body['hello'] == 'sleepy'
     assert body['version'][0] == 7
     assert client.get('/api/v1/health').status_code == 204
@@ -132,6 +137,21 @@ async def test_broadcast_reaches_sse_queue():
 
     await mgr.sse_disconnect(queue)
     assert mgr.online == 0
+
+
+async def test_sse_slow_consumer_is_dropped(monkeypatch):
+    '''有界队列必须移除跟不上事件速率的 SSE 客户端。'''
+    from core.broadcast import ConnManager
+
+    monkeypatch.setattr('core.broadcast.c.sse_queue_size', 1)
+    mgr = ConnManager()
+    queue = await mgr.sse_connect()
+    queue.get_nowait()
+
+    await mgr.broadcast('first')
+    await mgr.broadcast('second')
+
+    assert queue not in mgr._sse_queues
 
 
 # region event-bus

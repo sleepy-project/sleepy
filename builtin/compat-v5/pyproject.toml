@@ -2,7 +2,7 @@
 name = "compat-v5"
 version = "1.0.0"
 description = "Sleepy v5 旧版 API 兼容层"
-authors = [{ name = "sleepy-project contributors" }]
+authors = [{ name = "sleepy-project" }]
 dependencies = []
 
 [tool.sleepy]

@@ -1,4 +1,4 @@
-# Copyright (C) 2026 sleepy-project contributors
+# Copyright (C) 2026 sleepy-project
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -141,6 +141,11 @@ class ConfigModel(BaseModel):
     ws_refresh_interval: PositiveInt = 5
     '''
     WebSocket 推送刷新间隔 (秒)
+    '''
+
+    sse_queue_size: PositiveInt = 256
+    '''
+    单个 SSE 客户端允许积压的事件数。超过上限的慢客户端会被断开，防止无界内存增长。
     '''
 
     auth_access_token_expires_minutes: PositiveInt = 60

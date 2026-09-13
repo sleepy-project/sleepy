@@ -2,7 +2,7 @@
 name = "status"
 version = "1.0.0"
 description = "手动状态设置与整体状态查询"
-authors = [{ name = "sleepy-project contributors" }]
+authors = [{ name = "sleepy-project" }]
 dependencies = []
 
 [tool.sleepy]

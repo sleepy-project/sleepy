@@ -23,6 +23,10 @@ data/
 .venv/
 .venv_legacy/
 
+# 前端构建产物与依赖
+frontend/dist/
+frontend/node_modules/
+
 # Test / Tooling
 .pytest_cache/
 .ruff_cache/

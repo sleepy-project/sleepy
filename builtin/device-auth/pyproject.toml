@@ -2,7 +2,7 @@
 name = "device-auth"
 version = "1.0.0"
 description = "设备 Token 的签发、列出与撤销"
-authors = [{ name = "sleepy-project contributors" }]
+authors = [{ name = "sleepy-project" }]
 dependencies = []
 
 [tool.sleepy]

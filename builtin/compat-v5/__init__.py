@@ -1,4 +1,4 @@
-# Copyright (C) 2026 sleepy-project contributors
+# Copyright (C) 2026 sleepy-project
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -34,6 +34,7 @@ compat-v5 —— 旧版 API 兼容层
 不需要兼容层时, 在配置里关掉即可: `plugins.disabled = ['compat-v5']`
 '''
 
+import asyncio
 import typing as t
 from json import loads
 from time import time
@@ -71,6 +72,7 @@ class Plugin(PluginBase):
 
         # --- 元信息 ---
         self.add_route('/api/meta', self._meta, ['GET'], tags=['compat-v5'])
+        self.add_route('/api/metrics', self._metrics, ['GET'], tags=['compat-v5'])
 
     # region helpers
 
@@ -269,3 +271,16 @@ class Plugin(PluginBase):
             'version_int': list(version),
             'plugin': plugin_manager.get_loaded_plugins()
         }
+
+    async def _metrics(self):
+        '''
+        v5 `/api/metrics`
+
+        metrics 插件被禁用时不报错, 而是返回 v5 在统计关闭时的那份响应 ——
+        老客户端认得这个形状, 会安静地跳过统计展示。
+        '''
+        summary = plugin_manager.api('metrics').get('summary')
+        if not summary:
+            return {'success': True, 'enabled': False}
+        # metrics 使用同步 SQLite 访问；兼容路由不能阻塞 ASGI event loop。
+        return await asyncio.to_thread(summary)

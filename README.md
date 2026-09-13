@@ -61,13 +61,25 @@ tests/      测试
 | `status` | 手动状态、状态预设、整体状态查询 |
 | `device` | 设备上报、设备列表、隐私模式 |
 | `device-auth` | 设备 Token 的签发、列出、撤销 |
+| `metrics` | 访问统计 |
+| `frontend` | 前端静态资源 |
 | `compat-v5` | v5 旧版 API 兼容层 |
 
 ## API
 
 主干接口在 `/api/v1/` 下，完整文档见 `/docs`（Swagger）或 `/redoc`。
 
-`/api/status/*`、`/api/device/*`、`/api/meta` 是 v5 兼容路径，由 `compat-v5` 插件提供。
+`/api/status/*`、`/api/device/*`、`/api/meta`、`/api/metrics` 是 v5 兼容路径，由 `compat-v5` 插件提供。
+
+## 文档
+
+| | |
+|---|---|
+| [部署](./docs/deploy.md) | Docker、源码运行、反向代理 |
+| [从 v5 迁移](./docs/migration.md) | 现有客户端一行都不用改 |
+| [配置](./docs/config.md) | 所有配置项 |
+| [API 参考](./docs/api.md) | 接口速查 |
+| [插件开发](./docs/plugin.md) | 写一个插件 |
 
 ## 开发
 
@@ -76,11 +88,11 @@ uv sync --extra dev
 uv run pytest -q
 ```
 
-写插件参考 `builtin/` 下的任意一个，插件基类在 `core/plugin.py`。
+写插件参考 `builtin/` 下的任意一个，插件基类在 `core/plugin.py`，指南见 [docs/plugin.md](./docs/plugin.md)。
 
 ## License
 
 This project is licensed under the GNU General Public License v3.0.
 See the [LICENSE](./LICENSE) file for details.
 
-Copyright © 2026 sleepy-project contributors.
+Copyright © 2026 sleepy-project.

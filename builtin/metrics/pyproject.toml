@@ -1,7 +1,7 @@
 [project]
-name = "device"
+name = "metrics"
 version = "1.0.0"
-description = "设备状态上报与查询"
+description = "访问统计"
 authors = [{ name = "sleepy-project" }]
 dependencies = []
 

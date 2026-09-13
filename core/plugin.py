@@ -1,4 +1,4 @@
-# Copyright (C) 2026 sleepy-project contributors
+# Copyright (C) 2026 sleepy-project
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -71,11 +71,20 @@ class PluginMetadata:
 class PluginRoute:
     '''插件路由包装器'''
 
-    def __init__(self, path: str, endpoint: t.Callable, methods: list[str], override: bool = False, **kwargs):
+    def __init__(
+        self,
+        path: str,
+        endpoint: t.Callable,
+        methods: list[str],
+        override: bool = False,
+        low_priority: bool = False,
+        **kwargs
+    ):
         self.path = path
         self.endpoint = endpoint
         self.methods = methods
         self.override = override
+        self.low_priority = low_priority
         self.kwargs = kwargs
 
 
@@ -132,6 +141,7 @@ class PluginBase:
         endpoint: t.Callable,
         methods: t.List[str] | None = None,
         override: bool = False,
+        low_priority: bool = False,
         **kwargs
     ):
         '''
@@ -141,10 +151,21 @@ class PluginBase:
         :param endpoint: 处理函数
         :param methods: HTTP 方法, 默认 `['GET']`
         :param override: 是否覆盖已存在的同路径路由
+        :param low_priority: 是否推迟到所有插件路由之后再注册
+
+            catch-all 路由 (如 SPA 回落用的 `/{path:path}`) 必须开这个 ——
+            插件按名称排序加载, 否则一个字母序靠前的插件注册的 catch-all
+            会抢先匹配掉后面插件的正常接口。
         '''
-        route = PluginRoute(path=path, endpoint=endpoint, methods=methods or ['GET'], override=override, **kwargs)
+        route = PluginRoute(
+            path=path, endpoint=endpoint, methods=methods or ['GET'],
+            override=override, low_priority=low_priority, **kwargs
+        )
         self._routes.append(route)
-        l.debug(f'Plugin {self.metadata.name} registered route: {path} {route.methods} (override={override})')
+        l.debug(
+            f'Plugin {self.metadata.name} registered route: {path} {route.methods} '
+            f'(override={override}, low_priority={low_priority})'
+        )
 
     def mount(self, path: str, app: t.Any, name: str | None = None):
         '''
@@ -157,6 +178,14 @@ class PluginBase:
         if override_only:
             return [r for r in self._routes if r.override]
         return self._routes
+
+    def get_normal_routes(self) -> t.List[PluginRoute]:
+        '''普通路由 (既非覆盖也非低优先级)'''
+        return [r for r in self._routes if not r.override and not r.low_priority]
+
+    def get_low_priority_routes(self) -> t.List[PluginRoute]:
+        '''低优先级路由, 最后注册'''
+        return [r for r in self._routes if r.low_priority]
 
     def get_mounts(self) -> t.List[PluginMount]:
         return self._mounts
@@ -178,7 +207,8 @@ class PluginBase:
         注册插件配置 Schema
 
         应在 `__init__` 中调用。配置项写在 `plugin.<插件目录名>` 下,
-        由 PluginManager 在 `on_load` 结束后解析并校验。
+        由 PluginManager 在 `on_load` **之前** 解析并校验 —— 因此 `on_load`
+        里可以直接用 `get_config()` 决定要注册哪些路由。
         '''
         self._config_schema = schema_class
         l.debug(f'Plugin {self.metadata.name} registered config schema: {schema_class.__name__}')
@@ -187,7 +217,8 @@ class PluginBase:
         '''
         获取已校验的插件配置
 
-        需先 `register_config()`, 且只能在 `on_load()` 完成之后使用。
+        需先在 `__init__` 里 `register_config()`。此后 `on_load()` 及其之后的
+        任何阶段都可以调用。
         '''
         if self._config_schema is None:
             raise RuntimeError(
@@ -197,7 +228,7 @@ class PluginBase:
         if self._config_instance is None:
             raise RuntimeError(
                 f'Plugin {self.metadata.name} config has not been resolved yet. '
-                'Config is available after on_load() completes.'
+                'Config is resolved before on_load(); calling get_config() from __init__ is too early.'
             )
         return self._config_instance
 
@@ -255,7 +286,11 @@ class PluginBase:
     # region hooks
 
     def on_load(self):
-        '''插件加载时调用 (同步, 无 event loop)'''
+        '''
+        插件加载时调用 (同步, 无 event loop)
+
+        注册路由的常规位置。此时配置已解析完毕, 可以放心使用 `get_config()`。
+        '''
 
     def on_unload(self):
         '''插件卸载时调用'''
@@ -446,8 +481,11 @@ class PluginManager:
                 l.error(f'Plugin {plugin_name}: Plugin class must inherit from PluginBase')
                 return False
 
-            plugin_instance.on_load()
+            # 配置必须先于 on_load 解析: on_load 是插件注册路由的地方, 而要注册
+            # 什么路由往往取决于配置 (例如 frontend 要看构建产物在不在)。
+            # 解析只依赖 __init__ 里 register_config() 设下的 schema, 提前没有代价。
             self._resolve_plugin_config(plugin_instance, plugin_name)
+            plugin_instance.on_load()
             self.plugins[plugin_name] = plugin_instance
             self.metadata[plugin_name] = metadata
 
@@ -615,7 +653,22 @@ class PluginManager:
             l.info(f'Plugin {plugin_name} overriding route: {route.path} {route.methods}')
 
         before = len(app.routes)
-        app.add_api_route(route.path, route.endpoint, methods=route.methods, **route.kwargs)
+        kwargs = dict(route.kwargs)
+
+        if len(route.methods) > 1 and 'operation_id' not in kwargs:
+            # 一条路由挂多个 method 时, FastAPI 为每个 method 生成的 operationId
+            # 都基于同一个 (函数名, 路径), 于是相互重复并发出告警。
+            # 分开注册并显式给出 operationId, 保证 OpenAPI 文档可用。
+            name = getattr(route.endpoint, '__name__', 'endpoint').lstrip('_')
+            for method in route.methods:
+                app.add_api_route(
+                    route.path, route.endpoint, methods=[method],
+                    operation_id=f'{plugin_name}_{name}_{method.lower()}',
+                    **kwargs
+                )
+        else:
+            app.add_api_route(route.path, route.endpoint, methods=route.methods, **kwargs)
+
         self._plugin_routes.setdefault(plugin_name, []).extend(app.routes[before:])
         l.debug(f'Added plugin route: {route.path} {route.methods}')
 
@@ -643,19 +696,26 @@ class PluginManager:
 
                 plugin.setup_routes(app)
 
-                for route in plugin.get_routes():
-                    if not route.override:
-                        self._add_plugin_route(app, plugin_name, route)
+                for route in plugin.get_normal_routes():
+                    self._add_plugin_route(app, plugin_name, route)
             except Exception as ex:
                 l.error(f'Failed to setup routes for plugin {plugin_name}: {ex}')
 
-        # 覆盖型路由最后处理, 确保它们能盖住前面所有注册
+        # 覆盖型路由其次, 确保它们能盖住前面所有注册
         for plugin_name, plugin in self.plugins.items():
             try:
                 for route in plugin.get_routes(override_only=True):
                     self._add_plugin_route(app, plugin_name, route)
             except Exception as ex:
                 l.error(f'Failed to setup override routes for plugin {plugin_name}: {ex}')
+
+        # 低优先级路由最后, 它们通常是 catch-all, 必须让位给所有正常接口
+        for plugin_name, plugin in self.plugins.items():
+            try:
+                for route in plugin.get_low_priority_routes():
+                    self._add_plugin_route(app, plugin_name, route)
+            except Exception as ex:
+                l.error(f'Failed to setup low-priority routes for plugin {plugin_name}: {ex}')
 
     def apply_response_modifiers(self, request: Request, response: Response, endpoint: str) -> Response:
         modified = response

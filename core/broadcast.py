@@ -1,4 +1,4 @@
-# Copyright (C) 2026 sleepy-project contributors
+# Copyright (C) 2026 sleepy-project
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -31,6 +31,7 @@ from fastapi.encoders import jsonable_encoder
 from loguru import logger as l
 
 from core.events import bus, StreamConnectedEvent, StreamDisconnectedEvent
+from core.config import config as c
 
 SnapshotProvider = t.Callable[[], t.Dict[str, t.Any]]
 
@@ -97,7 +98,7 @@ class ConnManager:
         '''
         接入一个 SSE 连接
         '''
-        queue: asyncio.Queue = asyncio.Queue()
+        queue: asyncio.Queue = asyncio.Queue(maxsize=c.sse_queue_size)
         self._sse_queues.add(queue)
         l.info(f'EventStream connected, current connections: {self.online}')
         await bus.emit(StreamConnectedEvent('sse', self.online))

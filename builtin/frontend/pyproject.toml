@@ -1,7 +1,7 @@
 [project]
-name = "device"
+name = "frontend"
 version = "1.0.0"
-description = "设备状态上报与查询"
+description = "前端静态资源服务"
 authors = [{ name = "sleepy-project" }]
 dependencies = []
 

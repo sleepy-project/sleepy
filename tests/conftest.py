@@ -1,4 +1,4 @@
-# Copyright (C) 2026 sleepy-project contributors
+# Copyright (C) 2026 sleepy-project
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -35,6 +35,18 @@ os.close(_db_fd)
 os.environ['SLEEPY_DATABASE'] = f'sqlite:///{_db_path}'
 os.environ['SLEEPY_LOG_LEVEL'] = 'WARNING'
 os.environ['SLEEPY_LOG_FILE'] = ''
+
+# 造一份临时的前端构建产物, 让 frontend 插件有东西可 serve。
+# 插件在加载时 (应用创建期) 就决定要不要注册路由, 所以这必须在 core 被 import 前准备好。
+_dist_dir = Path(tempfile.mkdtemp(prefix='sleepy-test-dist-'))
+(_dist_dir / 'assets').mkdir()
+(_dist_dir / 'index.html').write_text(
+    '<!doctype html><title>sleepy</title><div id="root">FRONTEND-INDEX</div>',
+    encoding='utf-8'
+)
+(_dist_dir / 'assets' / 'app.css').write_text('body{}', encoding='utf-8')
+(_dist_dir / 'robots.txt').write_text('User-agent: *', encoding='utf-8')
+os.environ['SLEEPY_PLUGIN_FRONTEND_DIST_DIR'] = str(_dist_dir)
 
 import pytest  # noqa: E402
 
@@ -85,7 +97,9 @@ def clean_devices(client, admin_headers):
 
 
 def pytest_sessionfinish(session, exitstatus):
+    import shutil
     try:
         os.unlink(_db_path)
     except OSError:
         pass
+    shutil.rmtree(_dist_dir, ignore_errors=True)

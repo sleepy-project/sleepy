@@ -1,4 +1,4 @@
-# Copyright (C) 2026 sleepy-project contributors
+# Copyright (C) 2026 sleepy-project
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -212,7 +212,9 @@ def _setup_middleware(app: FastAPI):
     app.add_middleware(
         CORSMiddleware,
         allow_origins=c.cors_origins,
-        allow_credentials=True,
+        # Wildcard origins cannot safely be combined with credentialed browser requests.
+        # Token-authenticated clients use explicit headers, so credentials are unnecessary here.
+        allow_credentials='*' not in c.cors_origins,
         allow_methods=['*'],
         allow_headers=['*'],
         expose_headers=['X-Sleepy-Version', 'X-Sleepy-Request-Id']
@@ -266,9 +268,25 @@ def _setup_core_routes(app: FastAPI):
     只有框架级接口 —— 状态、设备这类业务接口由插件提供。
     '''
 
+    def _meta_payload():
+        return {'hello': 'sleepy', 'version': version, 'version_str': version_str}
+
     @app.get('/', response_model=RootResponse, tags=['core'])
     async def root():
-        return {'hello': 'sleepy', 'version': version, 'version_str': version_str}
+        '''
+        根路径
+
+        装了前端插件时这条会被它覆盖掉 (首页要给人看), 所以程序化获取版本信息
+        请用 `/api/v1/meta` —— 那条路径不会被接管。
+        '''
+        return _meta_payload()
+
+    @app.get('/api/v1/meta', response_model=RootResponse, tags=['core'])
+    async def meta():
+        '''
+        服务元信息 (稳定路径, 不会被前端接管)
+        '''
+        return _meta_payload()
 
     @app.get('/api/v1/health', status_code=hc.HTTP_204_NO_CONTENT, tags=['core'])
     async def health():
