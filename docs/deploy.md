@@ -21,12 +21,13 @@ environment:
 
 ## 从源码
 
-需要 Python 3.13+ 和 [uv](https://docs.astral.sh/uv/)。
+后端需要 Python 3.13+ 和 [uv](https://docs.astral.sh/uv/)。Web 管理端还需要 Node.js 22+ 与 pnpm 10+；不构建前端时服务会以 API-only 模式正常启动。
 
 ```bash
 git clone https://github.com/sleepy-project/sleepy.git
 cd sleepy
 uv sync
+uv run main.py frontend build --install
 uv run main.py
 ```
 
@@ -89,7 +90,7 @@ sleepy.example.com {
 
 ## 前端
 
-Docker 镜像和 release 包里已经带了构建产物，直接可用。
+使用仓库 Dockerfile 构建的镜像会在 Node.js 阶段生成前端产物，直接可用。release 包只有在发布流水线执行前端构建并包含 `frontend/dist` 时才带网页；源码仓库不提交构建产物。
 
 从源码运行且需要前端时：
 

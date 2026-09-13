@@ -1,16 +1,25 @@
-FROM python:3.13-slim-trixie
+FROM node:22-slim AS frontend-builder
+
+RUN corepack enable
+WORKDIR /build/frontend
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY frontend/ ./
+RUN pnpm build
+
+FROM python:3.13-slim-trixie AS runtime
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /sleepy
 
 COPY pyproject.toml uv.lock* ./
-RUN ["uv", "sync", "--no-dev"]
+RUN uv sync --frozen --no-dev
 
 COPY . .
+COPY --from=frontend-builder /build/frontend/dist ./frontend/dist
 
 EXPOSE 9010
 VOLUME ["/sleepy/data"]
 
-# 前端插件迁入 builtin/frontend 后, 这里需要重新加上 nodejs + pnpm 来构建前端资源
-CMD ["uv", "run", "main.py"]
+CMD ["uv", "run", "--no-sync", "main.py"]

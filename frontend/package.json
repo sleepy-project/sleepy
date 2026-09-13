@@ -1,0 +1,29 @@
+{
+  "name": "sleepy-web",
+  "private": true,
+  "version": "7.0.0-alpha.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "check": "vue-tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@vueuse/core": "^13.7.0",
+    "pinia": "^3.0.3",
+    "vue": "^3.5.21",
+    "vue-router": "^4.5.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.1",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "@vue/tsconfig": "^0.8.1",
+    "jsdom": "^27.0.0",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.5",
+    "vitest": "^3.2.4",
+    "vue-tsc": "^3.0.6"
+  },
+  "packageManager": "pnpm@10.15.1"
+}

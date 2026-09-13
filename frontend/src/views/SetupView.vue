@@ -1,0 +1,6 @@
+<script setup lang="ts">
+import { ref } from 'vue'; import { useRouter } from 'vue-router'; import Notice from '@/components/Notice.vue'; import { useAuthStore } from '@/stores/auth'
+const auth = useAuthStore(); const router = useRouter(); const password = ref(''); const confirm = ref(''); const error = ref('')
+async function submit() { error.value = ''; if (password.value.length < 8) return void (error.value = '管理密码至少需要 8 个字符'); if (password.value !== confirm.value) return void (error.value = '两次输入的密码不一致'); try { await auth.initialize(password.value); await auth.login(password.value); await router.push('/admin') } catch (reason) { error.value = reason instanceof Error ? reason.message : '初始化失败' } }
+</script>
+<template><section class="auth-card"><span class="eyebrow">首次运行</span><h1>初始化 Sleepy</h1><p>设置管理密码。该操作只能执行一次。</p><Notice :message="error" type="error"/><form @submit.prevent="submit"><label>管理密码<input v-model="password" type="password" autocomplete="new-password" required /></label><label>确认密码<input v-model="confirm" type="password" autocomplete="new-password" required /></label><button class="primary" :disabled="auth.loading">{{ auth.loading ? '正在初始化…' : '初始化并登录' }}</button></form></section></template>

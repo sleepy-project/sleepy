@@ -18,8 +18,34 @@ database = "sqlite:///data.db"
 # MySQL 样例: "mysql://user:password@127.0.0.1:3306/sleepy"
 
 ping_interval = 20
+ws_refresh_interval = 5
+sse_queue_size = 256
 auth_access_token_expires_minutes = 60
 auth_refresh_token_expires_days = 30
-device_token_expires_days = 365
+token_last_active_throttle_seconds = 60
 
-ws_refresh_interval = 10
+[plugins]
+# 所有旧客户端迁移完成后可禁用 v5 兼容层
+# disabled = ["compat-v5"]
+disabled = []
+
+[plugin.device-auth]
+# 设备脚本通常无法自动轮换 token；0 表示永不过期
+expires_days = 0
+
+[plugin.metrics]
+enabled = true
+timezone = "Asia/Shanghai"
+flush_interval = 30
+
+[plugin.frontend]
+dist_dir = "frontend/dist"
+source_dir = "frontend"
+spa_fallback = true
+
+# 状态预设可按需覆盖。启用此示例后应配置完整列表。
+# [[plugin.status.presets]]
+# id = 0
+# name = "在线"
+# desc = "目前可以联系"
+# color = "awake"

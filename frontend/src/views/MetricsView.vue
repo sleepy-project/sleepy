@@ -1,0 +1,8 @@
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'; import Notice from '@/components/Notice.vue'; import { useDashboardStore } from '@/stores/dashboard'
+const store = useDashboardStore(); const error = ref(''); const period = ref<'daily'|'weekly'|'monthly'|'yearly'|'total'>('daily')
+const rows = computed(() => Object.entries(store.metrics?.[period.value] || {}).sort((a, b) => b[1] - a[1]))
+const sum = computed(() => rows.value.reduce((total, item) => total + item[1], 0))
+onMounted(async () => { try { await store.loadMetrics() } catch (reason) { error.value = reason instanceof Error ? reason.message : '加载失败' } })
+</script>
+<template><div class="page"><div class="page-heading"><div><span class="eyebrow">访问分析</span><h1>统计</h1></div><button class="ghost" @click="store.loadMetrics()">刷新</button></div><Notice :message="error" type="error"/><section v-if="store.metrics && !store.metrics.enabled" class="empty">统计插件当前已禁用。</section><template v-else><div class="metric-summary"><span>所选周期请求</span><strong>{{ sum.toLocaleString() }}</strong><small>{{ store.metrics?.timezone }} · {{ store.metrics?.time_local }}</small></div><div class="tabs"><button v-for="item in [['daily','日'],['weekly','周'],['monthly','月'],['yearly','年'],['total','总计']]" :key="item[0]" :class="{ active: period === item[0] }" @click="period = item[0] as typeof period">{{ item[1] }}</button></div><section class="section"><p v-if="!rows.length" class="empty">当前周期暂无访问记录。</p><div v-else class="metric-list"><div v-for="[path, value] in rows" :key="path"><code>{{ path }}</code><span>{{ value.toLocaleString() }}</span></div></div></section></template></div></template>

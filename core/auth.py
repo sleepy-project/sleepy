@@ -93,7 +93,7 @@ class AuthLoginRequest(BaseModel):
 
 
 class AuthRefreshRequest(BaseModel):
-    token: UUID
+    token: UUID | None = None
     refresh_token: UUID
 
 
@@ -437,28 +437,24 @@ async def auth_login(sess: SessionDep, req: AuthLoginRequest):
 async def auth_refresh(sess: SessionDep, req: AuthRefreshRequest):
     ensure_auth_initialized(sess)
     now_ts = datetime.now(timezone.utc).timestamp()
-    access_token = sess.get(m.TokenData, str(req.token))
+    access_token = sess.get(m.TokenData, str(req.token)) if req.token else None
     refresh_token = sess.get(m.TokenData, str(req.refresh_token))
 
-    if not access_token or base_token_type(access_token.type) != AUTH_ACCESS_PREFIX:
-        raise e.APIUnsuccessful(hc.HTTP_401_UNAUTHORIZED, 'Invalid token')
     if not refresh_token or base_token_type(refresh_token.type) != AUTH_REFRESH_PREFIX:
         raise e.APIUnsuccessful(hc.HTTP_401_UNAUTHORIZED, 'Invalid refresh token')
-
-    if token_device_hash(refresh_token.type) != token_device_hash(access_token.type):
-        raise e.APIUnsuccessful(hc.HTTP_401_UNAUTHORIZED, 'Token pair mismatch')
 
     if refresh_token.expire and 0 < refresh_token.expire < now_ts:
         sess.delete(refresh_token)
         sess.commit()
         raise e.APIUnsuccessful(hc.HTTP_401_UNAUTHORIZED, 'Refresh token expired')
 
-    if access_token.expire and 0 < access_token.expire < now_ts:
+    if access_token:
+        if base_token_type(access_token.type) != AUTH_ACCESS_PREFIX:
+            raise e.APIUnsuccessful(hc.HTTP_401_UNAUTHORIZED, 'Invalid token')
+        if token_device_hash(refresh_token.type) != token_device_hash(access_token.type):
+            raise e.APIUnsuccessful(hc.HTTP_401_UNAUTHORIZED, 'Token pair mismatch')
         sess.delete(access_token)
-        sess.commit()
-        raise e.APIUnsuccessful(hc.HTTP_401_UNAUTHORIZED, 'Token expired')
 
-    sess.delete(access_token)
     return _issue_access_from_refresh(sess, refresh_token)
 
 

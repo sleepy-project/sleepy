@@ -72,7 +72,9 @@ def test_auth_flow(client):
 
 
 def test_token_check_and_refresh(client):
-    tokens = client.post('/api/v1/auth/login', json={'password': 'test-password', 'hashed': False}).json()
+    tokens = client.post('/api/v1/auth/login', json={
+        'password': 'test-password', 'hashed': False, 'device_uid': 'pytest-refresh'
+    }).json()
 
     resp = client.get('/api/v1/auth/check', headers={'X-Sleepy-Token': tokens['token']})
     assert resp.status_code == 200
@@ -85,6 +87,13 @@ def test_token_check_and_refresh(client):
     })
     assert refreshed.status_code == 200
     assert refreshed.json()['token'] != tokens['token']
+
+    # access token 可能已过期或已被清理；有效 refresh token 仍应能恢复会话
+    refreshed_again = client.post('/api/v1/auth/refresh', json={
+        'refresh_token': refreshed.json()['refresh_token']
+    })
+    assert refreshed_again.status_code == 200
+    assert refreshed_again.json()['token'] != refreshed.json()['token']
 
 
 def test_bearer_header_accepted(client, device_secret):
