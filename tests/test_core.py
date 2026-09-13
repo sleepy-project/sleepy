@@ -96,6 +96,12 @@ def test_token_check_and_refresh(client):
     assert refreshed_again.json()['token'] != refreshed.json()['token']
 
 
+def test_device_token_check(client, device_secret):
+    resp = client.get('/api/v1/auth/check', headers={'X-Sleepy-Token': device_secret})
+    assert resp.status_code == 200
+    assert resp.json() == {'expires_at': None, 'type': 'device'}
+
+
 def test_bearer_header_accepted(client, device_secret):
     resp = client.put(
         '/api/v1/devices/bearer-test',

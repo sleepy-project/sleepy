@@ -460,13 +460,16 @@ async def auth_refresh(sess: SessionDep, req: AuthRefreshRequest):
 
 @router.get('/check', response_model=AuthTokenCheckResponse, name='Check token validity')
 async def auth_check(
-    token: m.TokenData | None = Security(TokenDep(allowed_token_types=(AUTH_ACCESS_PREFIX,), throw=False))
+    token: m.TokenData | None = Security(
+        TokenDep(allowed_token_types=(AUTH_ACCESS_PREFIX, DEVICE_PREFIX), throw=False)
+    )
 ):
     if not token:
         raise e.APIUnsuccessful(hc.HTTP_403_FORBIDDEN, 'Invalid token')
+    base_type = base_token_type(token.type)
     return {
         'expires_at': token.expire if token.expire and token.expire > 0 else None,
-        'type': token_login_type(token.type)
+        'type': 'device' if base_type == DEVICE_PREFIX else token_login_type(token.type)
     }
 
 

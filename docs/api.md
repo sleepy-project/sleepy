@@ -31,7 +31,7 @@ Authorization: Bearer <token>
 | POST | `/api/v1/init` | — | 首次设置管理密码，已设置时返回 409 |
 | POST | `/api/v1/auth/login` | — | 登录，返回 access + refresh token |
 | POST | `/api/v1/auth/refresh` | — | 用 refresh token 换新的 access token |
-| GET | `/api/v1/auth/check` | 管理 | 校验 token 是否有效 |
+| GET | `/api/v1/auth/check` | 管理 / 设备 | 校验 token 是否有效并返回 `web`、`dev` 或 `device` 类型 |
 
 ```bash
 # 设置密码

@@ -19,6 +19,7 @@ data/
 
 # For Local / venv
 *.test.*
+!frontend/src/**/*.test.*
 *.local.*
 .venv/
 .venv_legacy/
